@@ -1,0 +1,139 @@
+import {
+  LayoutGrid,
+  Package,
+  ShoppingCart,
+  FileText,
+  MessageSquare,
+  Users,
+  FolderTree,
+  Star,
+  Bell,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
+
+export type NavItem = {
+  key: string;
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  badge?: string;
+  badgeClass?: "warn" | "accent";
+};
+
+export const NAV: NavItem[] = [
+  { key: "dashboard", label: "Tableau de bord", href: "/dashboard", icon: LayoutGrid },
+  { key: "products", label: "Produits", href: "/products", icon: Package, badge: "32" },
+  { key: "orders", label: "Commandes", href: "/orders", icon: ShoppingCart, badge: "12", badgeClass: "warn" },
+  { key: "quotes", label: "Devis", href: "/quotes", icon: FileText, badge: "12", badgeClass: "accent" },
+  { key: "messages", label: "Messages", href: "/messages", icon: MessageSquare, badge: "5", badgeClass: "warn" },
+  { key: "customers", label: "Clients", href: "/customers", icon: Users },
+  { key: "categories", label: "Catégories", href: "/categories", icon: FolderTree },
+  { key: "featured", label: "Mise en avant", href: "/featured", icon: Star },
+  { key: "campaigns", label: "Campagnes", href: "/campaigns", icon: Bell },
+  { key: "settings", label: "Paramètres", href: "/settings", icon: Settings },
+];
+
+export type Crumb = { label: string; href?: string };
+
+const STATIC_CRUMBS: Record<string, Crumb[]> = {
+  "/dashboard": [{ label: "Tableau de bord" }],
+  "/products": [
+    { label: "Tableau de bord", href: "/dashboard" },
+    { label: "Produits" },
+  ],
+  "/products/new": [
+    { label: "Tableau de bord", href: "/dashboard" },
+    { label: "Produits", href: "/products" },
+    { label: "Nouveau" },
+  ],
+  "/orders": [
+    { label: "Tableau de bord", href: "/dashboard" },
+    { label: "Commandes" },
+  ],
+  "/quotes": [
+    { label: "Tableau de bord", href: "/dashboard" },
+    { label: "Devis" },
+  ],
+  "/messages": [
+    { label: "Tableau de bord", href: "/dashboard" },
+    { label: "Messages" },
+  ],
+  "/customers": [
+    { label: "Tableau de bord", href: "/dashboard" },
+    { label: "Clients" },
+  ],
+  "/categories": [
+    { label: "Tableau de bord", href: "/dashboard" },
+    { label: "Catégories" },
+  ],
+  "/featured": [
+    { label: "Tableau de bord", href: "/dashboard" },
+    { label: "Mise en avant" },
+  ],
+  "/campaigns": [
+    { label: "Tableau de bord", href: "/dashboard" },
+    { label: "Campagnes" },
+  ],
+  "/settings": [
+    { label: "Tableau de bord", href: "/dashboard" },
+    { label: "Paramètres" },
+  ],
+};
+
+export function getBreadcrumb(pathname: string): Crumb[] {
+  if (STATIC_CRUMBS[pathname]) return STATIC_CRUMBS[pathname];
+  // Dynamic routes
+  if (pathname.startsWith("/products/")) {
+    return [
+      { label: "Tableau de bord", href: "/dashboard" },
+      { label: "Produits", href: "/products" },
+      { label: "Modifier" },
+    ];
+  }
+  if (pathname.startsWith("/orders/")) {
+    const id = pathname.split("/").pop() ?? "";
+    return [
+      { label: "Tableau de bord", href: "/dashboard" },
+      { label: "Commandes", href: "/orders" },
+      { label: `#${id}` },
+    ];
+  }
+  if (pathname.startsWith("/quotes/")) {
+    const id = pathname.split("/").pop() ?? "";
+    return [
+      { label: "Tableau de bord", href: "/dashboard" },
+      { label: "Devis", href: "/quotes" },
+      { label: `#${id}` },
+    ];
+  }
+  if (pathname.startsWith("/messages/")) {
+    return [
+      { label: "Tableau de bord", href: "/dashboard" },
+      { label: "Messages", href: "/messages" },
+      { label: "Conversation" },
+    ];
+  }
+  if (pathname.startsWith("/customers/")) {
+    return [
+      { label: "Tableau de bord", href: "/dashboard" },
+      { label: "Clients", href: "/customers" },
+      { label: "Fiche client" },
+    ];
+  }
+  return [{ label: "Tableau de bord" }];
+}
+
+export function getActiveKey(pathname: string): string {
+  if (pathname === "/dashboard") return "dashboard";
+  if (pathname.startsWith("/products")) return "products";
+  if (pathname.startsWith("/orders")) return "orders";
+  if (pathname.startsWith("/quotes")) return "quotes";
+  if (pathname.startsWith("/messages")) return "messages";
+  if (pathname.startsWith("/customers")) return "customers";
+  if (pathname.startsWith("/categories")) return "categories";
+  if (pathname.startsWith("/featured")) return "featured";
+  if (pathname.startsWith("/campaigns")) return "campaigns";
+  if (pathname.startsWith("/settings")) return "settings";
+  return "";
+}
