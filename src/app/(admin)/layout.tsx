@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
+import { AuthGate } from "@/components/AuthGate";
 
 export default function AdminLayout({
   children,
@@ -7,12 +8,14 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="app">
-      <Sidebar />
-      <main className="main">
-        <Topbar />
-        {children}
-      </main>
-    </div>
+    <AuthGate>
+      <div className="app">
+        <Sidebar />
+        <main className="main">
+          <Topbar />
+          {children}
+        </main>
+      </div>
+    </AuthGate>
   );
 }

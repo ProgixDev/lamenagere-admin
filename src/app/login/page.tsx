@@ -4,22 +4,48 @@ import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Mail } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
+import { setToken } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("azdine@lamenagereparis.fr");
-  const [pwd, setPwd] = useState("admin123");
+  const [pwd, setPwd] = useState("");
   const [showPwd, setShowPwd] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (
-      email === "azdine@lamenagereparis.fr" &&
-      pwd === "admin123"
-    ) {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: pwd,
+      });
+      if (error || !data.session || !data.user) {
+        toast.error("Email ou mot de passe incorrect");
+        return;
+      }
+
+      // Only admins / super_admins may enter (backend enforces this too).
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .single();
+      const role = profile?.role as string | undefined;
+      if (role !== "admin" && role !== "super_admin") {
+        await supabase.auth.signOut();
+        toast.error("Accès réservé aux administrateurs");
+        return;
+      }
+
+      setToken(data.session.access_token);
       router.push("/dashboard");
-    } else {
-      toast.error("Identifiants incorrects");
+    } catch {
+      toast.error("Connexion impossible");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -156,8 +182,9 @@ export default function LoginPage() {
               type="submit"
               className="btn btn-primary btn-lg"
               style={{ width: "100%", marginTop: 8 }}
+              disabled={loading}
             >
-              Se connecter
+              {loading ? "Connexion…" : "Se connecter"}
             </button>
 
             <div className="or-divider">

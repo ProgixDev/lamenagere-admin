@@ -1,13 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
 import { NAV, getActiveKey } from "@/lib/nav";
+import { supabase } from "@/lib/supabase";
+import { setToken } from "@/lib/api";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const active = getActiveKey(pathname);
+
+  async function logout() {
+    await supabase.auth.signOut().catch(() => {});
+    setToken(null);
+    router.replace("/login");
+  }
 
   return (
     <aside className="sidebar">
@@ -54,16 +63,28 @@ export function Sidebar() {
         })}
       </nav>
       <div className="sidebar-footer">
-        <div className="profile-block">
+        <button
+          type="button"
+          className="profile-block"
+          onClick={logout}
+          style={{
+            width: "100%",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+          title="Se déconnecter"
+        >
           <div className="avatar">AZ</div>
           <div className="profile-info">
-            <div className="pn">Azdine Khelifa</div>
-            <div className="pr">Administrateur</div>
+            <div className="pn">Administrateur</div>
+            <div className="pr">Se déconnecter</div>
           </div>
           <span style={{ color: "var(--outline)" }}>
-            <ChevronRight size={14} strokeWidth={1.8} />
+            <LogOut size={14} strokeWidth={1.8} />
           </span>
-        </div>
+        </button>
       </div>
     </aside>
   );
