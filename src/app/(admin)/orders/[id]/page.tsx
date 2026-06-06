@@ -1,319 +1,285 @@
-import Link from "next/link";
-import { Truck, ArrowRight, Check, Home, MessageSquare } from "lucide-react";
+"use client";
 
-export default async function OrderDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { toast } from "sonner";
+import { Truck, ArrowRight, Check } from "lucide-react";
+import { adminApi } from "@/lib/api";
+import { formatEUR } from "@/lib/format";
+
+const FLOW = ["commande_confirmee", "en_preparation", "en_attente_expedition", "expediee", "livree"] as const;
+type Status = (typeof FLOW)[number];
+const LABEL: Record<Status, string> = {
+  commande_confirmee: "Confirmée",
+  en_preparation: "En préparation",
+  en_attente_expedition: "En attente d'expédition",
+  expediee: "Expédiée",
+  livree: "Livrée",
+};
+const PILL: Record<Status, string> = {
+  commande_confirmee: "pill-navy",
+  en_preparation: "pill-prep",
+  en_attente_expedition: "pill-warning",
+  expediee: "pill-bronze",
+  livree: "pill-success",
+};
+
+interface OrderItem {
+  id: string;
+  product: { name: string; images: string[] };
+  quantity: number;
+  price: number;
+  customDimensions?: { width: number; height: number };
+}
+interface OrderDto {
+  id: string;
+  orderNumber: string;
+  items: OrderItem[];
+  status: Status;
+  total: number;
+  subtotal: number;
+  shippingCost: number;
+  shippingAddress: { firstName: string; lastName: string; street: string; postalCode: string; city: string; country: string };
+  territory: string;
+  estimatedDelivery: string;
+  createdAt: string;
+  timeline: { status: Status; label: string; timestamp?: string; completed: boolean }[];
+}
+interface Detail {
+  order: OrderDto;
+  client: { id: string; name: string; accountType: string } | null;
+  notes: { id: string; body: string; createdAt: string }[];
+}
+
+export default function OrderDetailPage() {
+  const params = useParams<{ id: string }>();
+  const id = params?.id;
+  const [d, setD] = useState<Detail | null>(null);
+  const [eta, setEta] = useState("");
+  const [note, setNote] = useState("");
+
+  function load() {
+    if (!id) return;
+    adminApi.orders
+      .detail(id)
+      .then((r) => {
+        const detail = r as Detail;
+        setD(detail);
+        setEta(detail.order.estimatedDelivery ?? "");
+      })
+      .catch((e: { message?: string }) => toast.error(e?.message ?? "Commande introuvable"));
+  }
+  useEffect(load, [id]);
+
+  if (!d) return <div className="page"><div className="page-subtitle">Chargement…</div></div>;
+  const o = d.order;
+  const currentIdx = FLOW.indexOf(o.status);
+
+  async function advance() {
+    const next = FLOW[Math.min(FLOW.length - 1, currentIdx + 1)];
+    if (next === o.status) return;
+    try {
+      await adminApi.orders.setStatus(o.id, { status: next });
+      toast.success(`Statut : ${LABEL[next]}`);
+      load();
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Échec");
+    }
+  }
+  async function ship() {
+    const carrier = prompt("Transporteur ?");
+    if (!carrier) return;
+    const trackingNumber = prompt("Numéro de suivi ?") ?? "";
+    try {
+      await adminApi.orders.ship(o.id, { carrier, trackingNumber });
+      toast.success("Commande marquée expédiée");
+      load();
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Échec");
+    }
+  }
+  async function saveEta() {
+    try {
+      await adminApi.orders.update(o.id, { estimatedDelivery: eta });
+      toast.success("Date enregistrée");
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Échec");
+    }
+  }
+  async function addNote() {
+    if (!note.trim()) return;
+    try {
+      await adminApi.orders.note(o.id, { body: note.trim() });
+      setNote("");
+      load();
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Échec");
+    }
+  }
+  async function refund() {
+    if (!confirm("Demander le remboursement ?")) return;
+    try {
+      await adminApi.orders.refund(o.id);
+      toast.success("Remboursement demandé (Stripe à venir)");
+      load();
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Échec");
+    }
+  }
 
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <div className="hstack" style={{ gap: 14, marginBottom: 6, flexWrap: "wrap" }}>
-            <h1 className="page-title">Commande #{id}</h1>
-            <span className="pill pill-prep">EN PRÉPARATION</span>
+            <h1 className="page-title">Commande #{o.orderNumber}</h1>
+            <span className={`pill ${PILL[o.status]}`}>{LABEL[o.status]}</span>
           </div>
           <div className="page-subtitle">
-            Passée le 3 mai 2026 à 14:32 · Sophie Mercier · 🇫🇷 Métropole
+            {new Date(o.createdAt).toLocaleDateString("fr-FR")} · {d.client?.name ?? ""} · {o.territory}
           </div>
         </div>
         <div className="hstack">
-          <button className="btn btn-outline btn-sm">Imprimer</button>
-          <button className="btn btn-outline btn-sm">
-            <Truck size={14} strokeWidth={1.7} />
-            <span>Bon de livraison</span>
-          </button>
-          <button className="btn btn-primary">
-            Faire avancer le statut <ArrowRight size={14} strokeWidth={2} />
-          </button>
+          {o.status !== "livree" && (
+            <button className="btn btn-primary" onClick={advance}>
+              Faire avancer le statut <ArrowRight size={14} strokeWidth={2} />
+            </button>
+          )}
         </div>
       </div>
 
       <div className="row-8-4">
         <div className="stack">
           <div className="card card-padded">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
-              <div>
-                <div className="eyebrow" style={{ marginBottom: 4 }}>Suivi</div>
-                <div className="card-title">Statut & expédition</div>
-              </div>
-            </div>
+            <div className="card-title" style={{ marginBottom: 18 }}>Statut & expédition</div>
             <div className="stepper">
-              <div className="step done">
-                <div className="step-icon"><Check size={14} strokeWidth={3} /></div>
-                <div className="step-label">Confirmée</div>
-                <div className="step-time">3 mai · 14:32</div>
-              </div>
-              <div className="step done">
-                <div className="step-icon"><Check size={14} strokeWidth={3} /></div>
-                <div className="step-label">En préparation</div>
-                <div className="step-time">3 mai · 16:10</div>
-              </div>
-              <div className="step current">
-                <div className="step-icon"><Truck size={14} strokeWidth={1.7} /></div>
-                <div className="step-label" style={{ color: "var(--primary)" }}>En attente d&apos;expédition</div>
-                <div className="step-time">En cours</div>
-              </div>
-              <div className="step">
-                <div className="step-icon"><Truck size={14} strokeWidth={1.7} /></div>
-                <div className="step-label" style={{ color: "var(--outline)" }}>Expédiée</div>
-                <div className="step-time">—</div>
-              </div>
-              <div className="step">
-                <div className="step-icon"><Home size={14} strokeWidth={2.5} /></div>
-                <div className="step-label" style={{ color: "var(--outline)" }}>Livrée</div>
-                <div className="step-time">—</div>
-              </div>
+              {FLOW.map((s, i) => {
+                const cls = i < currentIdx ? "step done" : i === currentIdx ? "step current" : "step";
+                return (
+                  <div key={s} className={cls}>
+                    <div className="step-icon">{i <= currentIdx ? <Check size={14} strokeWidth={3} /> : <Truck size={14} strokeWidth={1.7} />}</div>
+                    <div className="step-label" style={i > currentIdx ? { color: "var(--outline)" } : i === currentIdx ? { color: "var(--primary)" } : undefined}>{LABEL[s]}</div>
+                  </div>
+                );
+              })}
             </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginTop: 24, paddingTop: 24, borderTop: "1px solid var(--outline-soft)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 14, marginTop: 24, paddingTop: 24, borderTop: "1px solid var(--outline-soft)", alignItems: "end" }}>
               <div className="field">
                 <label className="field-label">Date de livraison estimée</label>
-                <input className="input" type="text" defaultValue="21 mai 2026" />
+                <input className="input" value={eta} onChange={(e) => setEta(e.target.value)} />
               </div>
-              <div className="field">
-                <label className="field-label">Note interne (admins uniquement)</label>
-                <input className="input" type="text" defaultValue="Container leaving Le Havre 15 mai" />
-              </div>
+              <button className="btn btn-outline btn-sm" onClick={saveEta}>Enregistrer</button>
             </div>
-
             <div className="hstack" style={{ marginTop: 22, gap: 10 }}>
-              <button className="btn btn-primary">
-                <Truck size={14} strokeWidth={1.7} />
-                <span>Marquer comme expédiée</span>
-              </button>
-              <button className="btn btn-danger btn-sm">Annuler la commande</button>
+              {o.status !== "expediee" && o.status !== "livree" && (
+                <button className="btn btn-primary" onClick={ship}>
+                  <Truck size={14} strokeWidth={1.7} /> <span>Marquer comme expédiée</span>
+                </button>
+              )}
             </div>
           </div>
 
           <div className="card">
             <div className="card-header">
               <div className="card-title">Articles commandés</div>
-              <span style={{ fontSize: 12, color: "var(--outline)" }}>2 articles</span>
+              <span style={{ fontSize: 12, color: "var(--outline)" }}>{o.items.length} ligne(s)</span>
             </div>
             <div style={{ overflowX: "auto" }}>
               <table className="tbl">
                 <thead>
-                  <tr>
-                    <th>Article</th>
-                    <th>Dimensions</th>
-                    <th style={{ textAlign: "center" }}>Qté</th>
-                    <th style={{ textAlign: "right" }}>Prix unitaire</th>
-                    <th style={{ textAlign: "right" }}>Total</th>
-                  </tr>
+                  <tr><th>Article</th><th>Dimensions</th><th style={{ textAlign: "center" }}>Qté</th><th style={{ textAlign: "right" }}>P.U.</th><th style={{ textAlign: "right" }}>Total</th></tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td>
-                      <div className="hstack" style={{ gap: 14 }}>
-                        <div className="thumb" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=120&q=80')" }}></div>
-                        <div>
-                          <div style={{ fontWeight: 500 }}>Canapé Modulable Bordeaux</div>
-                          <div className="mono" style={{ fontSize: 11, color: "var(--outline)", marginTop: 3 }}>SKU · LMP-S-005</div>
+                  {o.items.map((it) => (
+                    <tr key={it.id}>
+                      <td>
+                        <div className="hstack" style={{ gap: 14 }}>
+                          {it.product.images?.[0] && <div className="thumb" style={{ backgroundImage: `url(${it.product.images[0]})` }}></div>}
+                          <div style={{ fontWeight: 500 }}>{it.product.name}</div>
                         </div>
-                      </div>
-                    </td>
-                    <td><span style={{ fontSize: 12.5 }}>320×95×180 cm</span></td>
-                    <td style={{ textAlign: "center" }}>1</td>
-                    <td style={{ textAlign: "right" }} className="num">2 890 €</td>
-                    <td style={{ textAlign: "right" }} className="num">2 890 €</td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <div className="hstack" style={{ gap: 14 }}>
-                        <div className="thumb" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=120&q=80')" }}></div>
-                        <div>
-                          <div style={{ fontWeight: 500 }}>Buffet Miroir Triptyque</div>
-                          <div className="mono" style={{ fontSize: 11, color: "var(--outline)", marginTop: 3 }}>SKU · LMP-D-009</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td><span style={{ color: "var(--outline)" }}>—</span></td>
-                    <td style={{ textAlign: "center" }}>1</td>
-                    <td style={{ textAlign: "right" }} className="num">1 890 €</td>
-                    <td style={{ textAlign: "right" }} className="num">1 890 €</td>
-                  </tr>
+                      </td>
+                      <td><span style={{ fontSize: 12.5 }}>{it.customDimensions ? `${it.customDimensions.width}×${it.customDimensions.height} cm` : "—"}</span></td>
+                      <td style={{ textAlign: "center" }}>{it.quantity}</td>
+                      <td style={{ textAlign: "right" }} className="num">{formatEUR(it.price)}</td>
+                      <td style={{ textAlign: "right" }} className="num">{formatEUR(it.price * it.quantity)}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
             <div style={{ padding: "20px 24px", borderTop: "1px solid var(--outline-soft)", display: "flex", justifyContent: "flex-end" }}>
               <div style={{ width: 300, display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--outline)" }}>Sous-total HT</span><span>3 983,33 €</span></div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--outline)" }}>TVA 20 %</span><span>796,67 €</span></div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--outline)" }}>Frais de livraison</span><span>0 €</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--outline)" }}>Sous-total</span><span>{formatEUR(o.subtotal)}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--outline)" }}>Livraison</span><span>{formatEUR(o.shippingCost)}</span></div>
                 <div style={{ height: 1, background: "var(--outline-soft)", margin: "8px 0" }}></div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--on-surface)", fontWeight: 600 }}>Total TTC</span>
-                  <span style={{ fontFamily: "var(--display)", fontSize: 22, fontWeight: 600, color: "var(--secondary)", letterSpacing: "-0.02em" }}>4 780,00 €</span>
+                  <span style={{ fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 600 }}>Total TTC</span>
+                  <span style={{ fontFamily: "var(--display)", fontSize: 22, fontWeight: 600, color: "var(--secondary)" }}>{formatEUR(o.total)}</span>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="card card-padded">
-            <div className="card-title" style={{ marginBottom: 18 }}>Adresses</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-              <div>
-                <div className="eyebrow" style={{ marginBottom: 10 }}>Livraison</div>
-                <div style={{ fontWeight: 500, marginBottom: 4 }}>Sophie Mercier</div>
-                <div style={{ fontSize: 13, color: "var(--on-surface-variant)", lineHeight: 1.6 }}>
-                  12 rue de Rivoli<br />75001 Paris<br />France métropolitaine
-                </div>
-                <div style={{ marginTop: 10, fontSize: 13, color: "var(--on-surface-variant)" }}>📞 06 12 34 56 78</div>
-                <button className="btn btn-outline btn-sm" style={{ marginTop: 14 }}>Modifier</button>
-              </div>
-              <div>
-                <div className="hstack" style={{ marginBottom: 10, gap: 10 }}>
-                  <div className="eyebrow">Facturation</div>
-                  <span className="pill pill-success-soft" style={{ fontSize: 9 }}>Identique</span>
-                </div>
-                <div style={{ fontWeight: 500, marginBottom: 4 }}>Sophie Mercier</div>
-                <div style={{ fontSize: 13, color: "var(--on-surface-variant)", lineHeight: 1.6 }}>
-                  12 rue de Rivoli<br />75001 Paris<br />France métropolitaine
-                </div>
-              </div>
+            <div className="card-title" style={{ marginBottom: 18 }}>Adresse de livraison</div>
+            <div style={{ fontWeight: 500, marginBottom: 4 }}>{o.shippingAddress.firstName} {o.shippingAddress.lastName}</div>
+            <div style={{ fontSize: 13, color: "var(--on-surface-variant)", lineHeight: 1.6 }}>
+              {o.shippingAddress.street}<br />{o.shippingAddress.postalCode} {o.shippingAddress.city}<br />{o.shippingAddress.country}
             </div>
           </div>
 
           <div className="card card-padded">
             <div className="card-title" style={{ marginBottom: 18 }}>Paiement</div>
-            <div className="hstack" style={{ gap: 14 }}>
-              <div style={{ width: 48, height: 32, background: "#1A1F71", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontStyle: "italic", fontSize: 11, borderRadius: 6, letterSpacing: "-0.05em" }}>
-                VISA
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 500, fontSize: 14 }}>Visa •••• 4242</div>
-                <div style={{ fontSize: 11, color: "var(--outline)", marginTop: 2, fontFamily: "var(--mono)" }}>tx_3K1aB2eZj9 · 3 mai 14:32</div>
-              </div>
-              <span className="pill pill-success">Payé · 4 780 €</span>
+            <div className="hstack" style={{ justifyContent: "space-between" }}>
+              <span className="pill pill-success">Total {formatEUR(o.total)}</span>
+              <button className="btn btn-danger btn-sm" onClick={refund}>Rembourser</button>
             </div>
-            <button className="btn btn-danger btn-sm" style={{ marginTop: 18 }}>Rembourser cette commande</button>
           </div>
 
           <div className="card card-padded">
-            <div className="card-title" style={{ marginBottom: 18 }}>Notes internes & journal</div>
+            <div className="card-title" style={{ marginBottom: 18 }}>Notes internes</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ display: "flex", gap: 12 }}>
-                <div className="avatar sm">AZ</div>
-                <div style={{ flex: 1, background: "var(--surface-container-low)", padding: "12px 14px", borderRadius: 10 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-                    Azdine <span style={{ color: "var(--outline)", fontWeight: 400, marginLeft: 6 }}>il y a 2h</span>
-                  </div>
-                  <div style={{ fontSize: 13 }}>
-                    Container partira de Le Havre vers le 15 mai. RAS sur la préparation.
+              {d.notes.map((n) => (
+                <div key={n.id} style={{ display: "flex", gap: 12 }}>
+                  <div className="avatar sm">AZ</div>
+                  <div style={{ flex: 1, background: "var(--surface-container-low)", padding: "12px 14px", borderRadius: 10 }}>
+                    <div style={{ fontSize: 11, color: "var(--outline)", marginBottom: 4 }}>{new Date(n.createdAt).toLocaleString("fr-FR")}</div>
+                    <div style={{ fontSize: 13 }}>{n.body}</div>
                   </div>
                 </div>
-              </div>
-              <div style={{ display: "flex", gap: 12 }}>
-                <div className="avatar sm">AZ</div>
-                <div style={{ flex: 1, background: "var(--surface-container-low)", padding: "12px 14px", borderRadius: 10 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-                    Azdine <span style={{ color: "var(--outline)", fontWeight: 400, marginLeft: 6 }}>il y a 4h</span>
-                  </div>
-                  <div style={{ fontSize: 13 }}>
-                    Stock OK, préparation lancée par l&apos;atelier.
-                  </div>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 12 }}>
-                <div className="avatar sm outline">⚙</div>
-                <div style={{ flex: 1, fontSize: 12.5, color: "var(--outline)", padding: "12px 0" }}>
-                  <span style={{ fontWeight: 600, color: "var(--on-surface-variant)" }}>Système</span> · il y a 5h · Statut changé : Confirmée → En préparation
-                </div>
-              </div>
+              ))}
+              {d.notes.length === 0 && <div style={{ color: "var(--outline)", fontSize: 13 }}>Aucune note.</div>}
             </div>
-            <textarea className="input-boxed" style={{ marginTop: 18, width: "100%", minHeight: 80 }} placeholder="Ajouter une note..." />
+            <textarea className="input-boxed" style={{ marginTop: 18, width: "100%", minHeight: 70 }} placeholder="Ajouter une note..." value={note} onChange={(e) => setNote(e.target.value)} />
+            <button className="btn btn-outline btn-sm" style={{ marginTop: 10 }} onClick={addNote}>Ajouter la note</button>
           </div>
         </div>
 
         <div className="stack">
           <div className="card card-padded">
             <div className="eyebrow" style={{ marginBottom: 14 }}>Client</div>
-            <div className="hstack" style={{ gap: 14, marginBottom: 16 }}>
-              <div className="avatar lg">SM</div>
-              <div>
-                <div style={{ fontFamily: "var(--display)", fontSize: 18, fontWeight: 600, letterSpacing: "-0.01em" }}>Sophie Mercier</div>
-                <div style={{ fontSize: 12, color: "var(--outline)", marginTop: 2 }}>sophie.mercier@gmail.com</div>
-                <div style={{ fontSize: 12, color: "var(--outline)" }}>06 12 34 56 78</div>
-              </div>
-            </div>
-            <div className="hstack" style={{ gap: 6, marginBottom: 18 }}>
-              <span className="pill pill-bronze-soft">Particulier</span>
-              <span className="pill pill-outline">5 commandes</span>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, padding: 14, background: "var(--surface-container-low)", borderRadius: 10 }}>
-              <div>
-                <div className="eyebrow" style={{ marginBottom: 4, fontSize: 9 }}>Total dépensé</div>
-                <div style={{ fontFamily: "var(--display)", fontSize: 18, fontWeight: 600, color: "var(--secondary)", letterSpacing: "-0.02em" }}>18 240 €</div>
-              </div>
-              <div>
-                <div className="eyebrow" style={{ marginBottom: 4, fontSize: 9 }}>Dernière commande</div>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>il y a 12 min</div>
-              </div>
-            </div>
-            <div style={{ marginTop: 14, display: "flex", gap: 8, flexDirection: "column" }}>
-              <Link href="/customers/sophie-mercier" className="btn btn-outline btn-sm">Voir la fiche client</Link>
-              <button className="btn btn-outline btn-sm">
-                <MessageSquare size={14} strokeWidth={1.6} />
-                <span>Envoyer un message</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="card card-padded">
-            <div className="eyebrow" style={{ marginBottom: 14 }}>Communication récente</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600 }}>
-                  Sophie Mercier <span style={{ color: "var(--outline)", fontWeight: 400, marginLeft: 6 }}>il y a 1h</span>
-                </div>
-                <div style={{ fontSize: 13, color: "var(--on-surface-variant)", marginTop: 4 }}>
-                  Bonjour, quand sera expédiée ma commande ?
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600 }}>
-                  Azdine <span style={{ color: "var(--outline)", fontWeight: 400, marginLeft: 6 }}>il y a 45 min</span>
-                </div>
-                <div style={{ fontSize: 13, color: "var(--on-surface-variant)", marginTop: 4 }}>
-                  Bonjour Sophie, expédition prévue cette semaine...
-                </div>
-              </div>
-            </div>
-            <Link href="/messages" className="card-link" style={{ marginTop: 14, display: "inline-block" }}>
-              Ouvrir la conversation →
-            </Link>
+            <div style={{ fontFamily: "var(--display)", fontSize: 18, fontWeight: 600 }}>{d.client?.name ?? "—"}</div>
+            <div style={{ fontSize: 12, color: "var(--outline)", marginTop: 2 }}>{d.client?.accountType}</div>
+            {d.client && (
+              <Link href={`/customers/${d.client.id}`} className="btn btn-outline btn-sm" style={{ marginTop: 14 }}>
+                Voir la fiche client
+              </Link>
+            )}
           </div>
 
           <div className="card card-padded">
             <div className="eyebrow" style={{ marginBottom: 14 }}>Historique du statut</div>
             <div className="timeline">
-              <div className="tl-row">
-                <span className="tl-dot" style={{ background: "var(--primary)" }}></span>
-                <div className="tl-text">
-                  <div>En préparation</div>
-                  <div className="tl-meta">3 mai · 16:10 — par Azdine</div>
+              {o.timeline.filter((t) => t.completed).reverse().map((t, i) => (
+                <div key={i} className="tl-row">
+                  <span className="tl-dot" style={{ background: "var(--primary)" }}></span>
+                  <div className="tl-text">
+                    <div>{t.label}</div>
+                    {t.timestamp && <div className="tl-meta">{new Date(t.timestamp).toLocaleString("fr-FR")}</div>}
+                  </div>
                 </div>
-              </div>
-              <div className="tl-row">
-                <span className="tl-dot" style={{ background: "var(--success)" }}></span>
-                <div className="tl-text">
-                  <div>Commande confirmée</div>
-                  <div className="tl-meta">3 mai · 14:32 — automatique</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="card card-padded">
-            <div className="eyebrow" style={{ marginBottom: 14 }}>Outils</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button className="btn btn-outline btn-sm">Dupliquer la commande</button>
-              <button className="btn btn-outline btn-sm">Générer un avoir</button>
-              <button className="btn btn-outline btn-sm">Signaler un problème</button>
+              ))}
             </div>
           </div>
         </div>

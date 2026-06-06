@@ -112,14 +112,18 @@ export const adminApi = {
   orders: {
     list: (qs = "") => api.get(`/admin/orders${qs}`),
     detail: (id: string) => api.get(`/admin/orders/${id}`),
+    update: (id: string, body: unknown) => api.put(`/admin/orders/${id}`, body),
     setStatus: (id: string, body: unknown) => api.put(`/admin/orders/${id}/status`, body),
     ship: (id: string, body: unknown) => api.post(`/admin/orders/${id}/ship`, body),
+    refund: (id: string) => api.post(`/admin/orders/${id}/refund`),
     note: (id: string, body: unknown) => api.post(`/admin/orders/${id}/note`, body),
   },
   quotes: {
     list: (status = "") => api.get(`/admin/quotes${status ? `?status=${status}` : ""}`),
     detail: (id: string) => api.get(`/admin/quotes/${id}`),
     update: (id: string, body: unknown) => api.put(`/admin/quotes/${id}`, body),
+    setStatus: (id: string, status: string) =>
+      api.put(`/admin/quotes/${id}/status`, { status }),
     send: (id: string) => api.post(`/admin/quotes/${id}/send`),
     reject: (id: string) => api.post(`/admin/quotes/${id}/reject`),
   },
@@ -135,8 +139,22 @@ export const adminApi = {
   },
   featured: {
     products: () => api.get("/admin/featured/products"),
+    addProduct: (productId: string) =>
+      api.post("/admin/featured/products", { productId }),
+    removeProduct: (productId: string) =>
+      api.delete(`/admin/featured/products/${productId}`),
+    reorderProducts: (ids: string[]) =>
+      api.post("/admin/featured/products/reorder", { ids }),
     carousel: () => api.get("/admin/featured/carousel"),
+    createSlide: (body: unknown) => api.post("/admin/featured/carousel", body),
+    updateSlide: (id: string, body: unknown) =>
+      api.put(`/admin/featured/carousel/${id}`, body),
+    deleteSlide: (id: string) => api.delete(`/admin/featured/carousel/${id}`),
     banners: () => api.get("/admin/featured/banners"),
+    createBanner: (body: unknown) => api.post("/admin/featured/banners", body),
+    updateBanner: (id: string, body: unknown) =>
+      api.put(`/admin/featured/banners/${id}`, body),
+    deleteBanner: (id: string) => api.delete(`/admin/featured/banners/${id}`),
   },
   settings: {
     get: () => api.get("/admin/settings"),

@@ -1,29 +1,143 @@
-import { Send, Plus } from "lucide-react";
+"use client";
 
-export default async function QuoteDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { toast } from "sonner";
+import { Send, Plus, Trash2 } from "lucide-react";
+import { adminApi } from "@/lib/api";
+import { formatEUR } from "@/lib/format";
+
+interface Item { description: string; quantity: number; unitPrice: string }
+interface QuoteRow {
+  id: string;
+  quote_number: string | null;
+  product_name: string | null;
+  product_image: string | null;
+  req_width: number | null;
+  req_height: number | null;
+  req_depth: number | null;
+  notes: string | null;
+  status: "en_attente_devis" | "devis_envoye" | "devis_accepte" | "devis_rejete";
+  quoted_price_cents: number | null;
+  shipping_cents: number | null;
+  fabrication_delay: string | null;
+  validity_days: number | null;
+  admin_message: string | null;
+  tva_rate: number | null;
+  is_b2b: boolean;
+  created_at: string;
+  attachments?: { id: string; url: string }[];
+  items?: { description: string; quantity: number; unit_price_cents: number; sort_order: number }[];
+  profile?: { first_name: string; last_name: string; account_type: string; company: string | null; siret: string | null };
+}
+
+const STATUS: Record<string, { label: string; cls: string }> = {
+  en_attente_devis: { label: "En attente", cls: "pill-warning" },
+  devis_envoye: { label: "Devis envoyé", cls: "pill-navy" },
+  devis_accepte: { label: "Accepté", cls: "pill-success" },
+  devis_rejete: { label: "Refusé", cls: "pill-error" },
+};
+
+export default function QuoteDetailPage() {
+  const params = useParams<{ id: string }>();
+  const id = params?.id;
+  const [q, setQ] = useState<QuoteRow | null>(null);
+  const [items, setItems] = useState<Item[]>([]);
+  const [shipping, setShipping] = useState("");
+  const [delay, setDelay] = useState("");
+  const [validity, setValidity] = useState("60");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  function load() {
+    if (!id) return;
+    adminApi.quotes
+      .detail(id)
+      .then((r) => {
+        const row = r as QuoteRow;
+        setQ(row);
+        setItems((row.items ?? []).sort((a, b) => a.sort_order - b.sort_order).map((it) => ({
+          description: it.description, quantity: it.quantity, unitPrice: String(it.unit_price_cents / 100),
+        })));
+        setShipping(row.shipping_cents != null ? String(row.shipping_cents / 100) : "");
+        setDelay(row.fabrication_delay ?? "");
+        setValidity(String(row.validity_days ?? 60));
+        setMessage(row.admin_message ?? "");
+      })
+      .catch((e: { message?: string }) => toast.error(e?.message ?? "Devis introuvable"));
+  }
+  useEffect(load, [id]);
+
+  if (!q) return <div className="page"><div className="page-subtitle">Chargement…</div></div>;
+
+  const st = STATUS[q.status];
+  const num = (s: string) => Number(s.replace(",", ".")) || 0;
+  const itemsTotal = items.reduce((sum, it) => sum + num(it.unitPrice) * it.quantity, 0);
+  const total = itemsTotal + num(shipping);
+
+  function setItem(i: number, p: Partial<Item>) {
+    setItems((xs) => xs.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  }
+
+  async function save() {
+    setBusy(true);
+    try {
+      await adminApi.quotes.update(q!.id, {
+        items: items.map((it) => ({ description: it.description, quantity: it.quantity, unitPrice: num(it.unitPrice) })),
+        shipping: num(shipping),
+        fabricationDelay: delay,
+        validityDays: Number(validity) || 60,
+        adminMessage: message,
+      });
+      toast.success("Devis enregistré");
+      load();
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Échec");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function send() {
+    setBusy(true);
+    try {
+      await save();
+      await adminApi.quotes.send(q!.id);
+      toast.success("Devis envoyé");
+      load();
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Envoi impossible");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function reject() {
+    try {
+      await adminApi.quotes.reject(q!.id);
+      toast.success("Devis refusé");
+      load();
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Échec");
+    }
+  }
+
+  const clientName = [q.profile?.first_name, q.profile?.last_name].filter(Boolean).join(" ");
 
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <div className="hstack" style={{ gap: 14, marginBottom: 6, flexWrap: "wrap" }}>
-            <h1 className="page-title">Demande #{id}</h1>
-            <span className="pill pill-warning">En attente</span>
+            <h1 className="page-title">Demande #{q.quote_number ?? q.id.slice(0, 8)}</h1>
+            <span className={`pill ${st.cls}`}>{st.label}</span>
           </div>
           <div className="page-subtitle">
-            Reçue le 3 mai 2026 à 13:55 · Karim Benali · SARL Atelier Sud
+            {new Date(q.created_at).toLocaleString("fr-FR")} · {clientName}{q.profile?.company ? ` · ${q.profile.company}` : ""}
           </div>
         </div>
         <div className="hstack">
-          <button className="btn btn-danger btn-sm">Refuser</button>
-          <button className="btn btn-primary">
-            <Send size={14} strokeWidth={1.7} />
-            <span>Envoyer le devis</span>
+          <button className="btn btn-danger btn-sm" onClick={reject} disabled={busy}>Refuser</button>
+          <button className="btn btn-primary" onClick={send} disabled={busy}>
+            <Send size={14} strokeWidth={1.7} /> <span>{busy ? "…" : "Envoyer le devis"}</span>
           </button>
         </div>
       </div>
@@ -33,184 +147,88 @@ export default async function QuoteDetailPage({
           <div className="card card-padded">
             <div className="card-title" style={{ marginBottom: 18 }}>Produit demandé</div>
             <div className="hstack" style={{ gap: 18 }}>
-              <div className="thumb lg" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1556909114-44e3e9399a2a?w=200&q=80')" }}></div>
+              {q.product_image && <div className="thumb lg" style={{ backgroundImage: `url(${q.product_image})` }}></div>}
               <div style={{ flex: 1 }}>
-                <a style={{ color: "var(--secondary)", fontFamily: "var(--display)", fontSize: 20, fontWeight: 600, letterSpacing: "-0.01em" }}>
-                  Cuisine Noire & Or →
-                </a>
-                <div style={{ fontSize: 12.5, color: "var(--outline)", marginTop: 4 }}>Cuisines · LMP-C-004</div>
+                <div style={{ color: "var(--secondary)", fontFamily: "var(--display)", fontSize: 20, fontWeight: 600 }}>{q.product_name}</div>
                 <div className="hstack" style={{ marginTop: 10, gap: 8 }}>
                   <span className="pill pill-outline">Sur devis</span>
-                  <span className="pill pill-bronze-soft">Réf. à partir de 14 800 €</span>
+                  {q.is_b2b && <span className="pill pill-bronze">PRO</span>}
                 </div>
               </div>
             </div>
-          </div>
-
-          <div className="card card-padded">
-            <div className="card-title" style={{ marginBottom: 18 }}>Dimensions souhaitées</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "center" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "10px 0", borderBottom: "1px solid var(--outline-soft)" }}>
-                  <span style={{ color: "var(--outline)" }}>Largeur</span>
-                  <span className="mono" style={{ fontWeight: 600 }}>350 cm</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "10px 0", borderBottom: "1px solid var(--outline-soft)" }}>
-                  <span style={{ color: "var(--outline)" }}>Hauteur</span>
-                  <span className="mono" style={{ fontWeight: 600 }}>220 cm</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "10px 0" }}>
-                  <span style={{ color: "var(--outline)" }}>Profondeur</span>
-                  <span className="mono" style={{ fontWeight: 600 }}>65 cm</span>
-                </div>
+            {(q.req_width || q.req_height) && (
+              <div style={{ marginTop: 18, fontSize: 13 }}>
+                <span style={{ color: "var(--outline)" }}>Dimensions souhaitées : </span>
+                <span className="mono" style={{ fontWeight: 600 }}>
+                  {q.req_width ?? "?"} × {q.req_height ?? "?"}{q.req_depth ? ` × ${q.req_depth}` : ""} cm
+                </span>
               </div>
-              <div style={{ background: "var(--surface-container-low)", borderRadius: 10, padding: 24, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="180" height="120" viewBox="0 0 180 120">
-                  <rect x="20" y="20" width="140" height="80" fill="none" stroke="#002444" strokeWidth="2" />
-                  <text x="90" y="14" textAnchor="middle" fontSize="11" fill="#73777f" fontFamily="Geist Mono">350 cm</text>
-                  <text x="174" y="64" fontSize="11" fill="#73777f" fontFamily="Geist Mono">220</text>
-                  <text x="90" y="68" textAnchor="middle" fontSize="10" fill="#7f5531" fontWeight="600">350 × 220 cm</text>
-                </svg>
+            )}
+            {q.notes && (
+              <div style={{ marginTop: 14, fontSize: 13, fontStyle: "italic", color: "var(--on-surface-variant)" }}>
+                « {q.notes} »
               </div>
-            </div>
+            )}
+            {(q.attachments ?? []).length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginTop: 14 }}>
+                {q.attachments!.map((a) => (
+                  <div key={a.id} style={{ aspectRatio: "1", borderRadius: 8, background: `url(${a.url}) center/cover` }}></div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="card card-padded">
-            <div className="card-title" style={{ marginBottom: 14 }}>Notes du client</div>
-            <div style={{ borderLeft: "3px solid var(--secondary)", padding: "12px 16px", background: "var(--surface-container-low)", borderRadius: "0 8px 8px 0", fontStyle: "italic", fontSize: 13.5, lineHeight: 1.6, color: "var(--on-surface-variant)" }}>
-              &quot;Bonjour, j&apos;aimerais un devis pour la cuisine Noire & Or avec un îlot plus large que le modèle de référence (3,5 mètres). Plan de travail en marbre Calacatta si possible. Merci d&apos;avance.&quot;
+            <div className="hstack" style={{ justifyContent: "space-between", marginBottom: 18 }}>
+              <div className="card-title">Préparer la réponse</div>
+              <button className="btn btn-outline btn-sm" onClick={() => setItems((xs) => [...xs, { description: "", quantity: 1, unitPrice: "" }])}>
+                <Plus size={14} strokeWidth={2} /> Ligne
+              </button>
             </div>
-          </div>
-
-          <div className="card card-padded">
-            <div className="card-title" style={{ marginBottom: 14 }}>Photos jointes (4)</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>
-              {[1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  style={{
-                    aspectRatio: "1",
-                    background: "url('https://images.unsplash.com/photo-1556909114-44e3e9399a2a?w=300&q=80') center/cover",
-                    borderRadius: 8,
-                  }}
-                ></div>
-              ))}
-            </div>
-          </div>
-
-          <div className="card card-padded">
-            <div className="card-title" style={{ marginBottom: 18 }}>Préparer la réponse</div>
-            <div className="field" style={{ marginBottom: 18 }}>
-              <label className="field-label">Prix proposé TTC</label>
-              <input
-                className="input"
-                style={{ fontFamily: "var(--display)", fontWeight: 600, fontSize: 32, color: "var(--secondary)", padding: "14px 0", letterSpacing: "-0.02em" }}
-                defaultValue="18 400 €"
-              />
-            </div>
-            <div className="eyebrow" style={{ marginBottom: 10 }}>Détail du devis</div>
-            <table className="tbl" style={{ marginBottom: 14 }}>
+            <table className="tbl">
               <thead>
-                <tr>
-                  <th>Description</th>
-                  <th style={{ textAlign: "center" }}>Qté</th>
-                  <th style={{ textAlign: "right" }}>Prix unit.</th>
-                  <th style={{ textAlign: "right" }}>Total</th>
-                  <th></th>
-                </tr>
+                <tr><th>Description</th><th style={{ textAlign: "center", width: 70 }}>Qté</th><th style={{ textAlign: "right", width: 120 }}>P.U. (€)</th><th style={{ textAlign: "right", width: 120 }}>Total</th><th></th></tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>Cuisine Noire & Or — base 350×220</td>
-                  <td style={{ textAlign: "center" }}>1</td>
-                  <td style={{ textAlign: "right" }} className="num">14 800 €</td>
-                  <td style={{ textAlign: "right" }} className="num">14 800 €</td>
-                  <td><button style={{ color: "var(--outline)" }}>×</button></td>
-                </tr>
-                <tr>
-                  <td>Plan de travail marbre Calacatta</td>
-                  <td style={{ textAlign: "center" }}>1</td>
-                  <td style={{ textAlign: "right" }} className="num">2 400 €</td>
-                  <td style={{ textAlign: "right" }} className="num">2 400 €</td>
-                  <td><button style={{ color: "var(--outline)" }}>×</button></td>
-                </tr>
-                <tr>
-                  <td>Îlot custom 3,5 m</td>
-                  <td style={{ textAlign: "center" }}>1</td>
-                  <td style={{ textAlign: "right" }} className="num">1 200 €</td>
-                  <td style={{ textAlign: "right" }} className="num">1 200 €</td>
-                  <td><button style={{ color: "var(--outline)" }}>×</button></td>
-                </tr>
+                {items.map((it, i) => (
+                  <tr key={i}>
+                    <td><input className="input" value={it.description} onChange={(e) => setItem(i, { description: e.target.value })} /></td>
+                    <td><input className="input num" style={{ textAlign: "center" }} type="number" value={it.quantity} onChange={(e) => setItem(i, { quantity: Number(e.target.value) })} /></td>
+                    <td><input className="input num" style={{ textAlign: "right" }} value={it.unitPrice} onChange={(e) => setItem(i, { unitPrice: e.target.value })} /></td>
+                    <td style={{ textAlign: "right" }} className="num">{formatEUR(num(it.unitPrice) * it.quantity)}</td>
+                    <td><button className="icon-btn" style={{ color: "var(--error)" }} onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))}><Trash2 size={14} /></button></td>
+                  </tr>
+                ))}
+                {items.length === 0 && <tr><td colSpan={5} style={{ color: "var(--outline)", fontSize: 13 }}>Ajoutez des lignes pour composer le devis.</td></tr>}
               </tbody>
             </table>
-            <button className="btn btn-outline btn-sm" style={{ marginBottom: 18 }}>
-              <Plus size={14} strokeWidth={2} />
-              <span>Ajouter une ligne</span>
-            </button>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 18 }}>
-              <div className="field">
-                <label className="field-label">Frais de livraison</label>
-                <input className="input" defaultValue="0 €" />
-              </div>
-              <div className="field">
-                <label className="field-label">Délai de fabrication</label>
-                <input className="input" defaultValue="6-8 semaines" />
-              </div>
-              <div className="field">
-                <label className="field-label">Validité du devis</label>
-                <div className="select-wrap" style={{ width: "100%" }}>
-                  <select style={{ width: "100%" }} defaultValue="60">
-                    <option value="30">30 jours</option>
-                    <option value="60">60 jours</option>
-                    <option value="90">90 jours</option>
-                  </select>
-                </div>
-              </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginTop: 18 }}>
+              <div className="field"><label className="field-label">Frais de livraison (€)</label><input className="input" value={shipping} onChange={(e) => setShipping(e.target.value)} /></div>
+              <div className="field"><label className="field-label">Délai de fabrication</label><input className="input" value={delay} onChange={(e) => setDelay(e.target.value)} /></div>
+              <div className="field"><label className="field-label">Validité (jours)</label><input className="input" type="number" value={validity} onChange={(e) => setValidity(e.target.value)} /></div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 18 }}>
-              <div style={{ width: 280, display: "flex", flexDirection: "column", gap: 6, fontSize: 13 }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "var(--outline)" }}>Sous-total HT</span>
-                  <span>15 333 €</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "var(--outline)" }}>TVA 20 %</span>
-                  <span>3 067 €</span>
-                </div>
-                <div style={{ height: 1, background: "var(--outline-soft)", margin: "6px 0" }}></div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span className="eyebrow">Total TTC</span>
-                  <span style={{ fontFamily: "var(--display)", fontSize: 22, fontWeight: 600, color: "var(--secondary)", letterSpacing: "-0.02em" }}>
-                    18 400 €
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="field" style={{ marginBottom: 18 }}>
+            <div className="field" style={{ marginTop: 14 }}>
               <label className="field-label">Message au client</label>
-              <textarea
-                className="textarea"
-                style={{ minHeight: 140 }}
-                defaultValue={`Bonjour Karim, suite à votre demande, voici notre proposition pour votre projet de cuisine Noire & Or sur mesure. Le devis tient compte des modifications souhaitées (îlot 3,5 m, plan de travail Calacatta). Notre équipe reste à votre disposition pour toute précision.
-
-Cordialement,
-Azdine — La Ménagère Paris`}
-              />
+              <textarea className="textarea" style={{ minHeight: 70 }} value={message} onChange={(e) => setMessage(e.target.value)} />
             </div>
 
-            <button className="btn btn-outline btn-sm" style={{ marginBottom: 18 }}>
-              📎 Joindre un PDF (devis détaillé)
-            </button>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
+              <div style={{ width: 280, display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--outline)" }}>Articles</span><span>{formatEUR(itemsTotal)}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--outline)" }}>Livraison</span><span>{formatEUR(num(shipping))}</span></div>
+                <div style={{ height: 1, background: "var(--outline-soft)", margin: "8px 0" }}></div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 600 }}>Total TTC</span>
+                  <span style={{ fontFamily: "var(--display)", fontSize: 22, fontWeight: 600, color: "var(--secondary)" }}>{formatEUR(total)}</span>
+                </div>
+              </div>
+            </div>
 
-            <div style={{ display: "flex", gap: 10, paddingTop: 18, borderTop: "1px solid var(--outline-soft)" }}>
-              <button className="btn btn-primary btn-lg" style={{ flex: 1 }}>
-                <Send size={14} strokeWidth={1.7} />
-                <span>Envoyer le devis au client</span>
-              </button>
-              <button className="btn btn-ghost btn-lg">Brouillon</button>
+            <div className="hstack" style={{ marginTop: 18, justifyContent: "flex-end", gap: 8 }}>
+              <button className="btn btn-outline btn-sm" onClick={save} disabled={busy}>Enregistrer</button>
+              <button className="btn btn-primary" onClick={send} disabled={busy}><Send size={14} /> Envoyer</button>
             </div>
           </div>
         </div>
@@ -218,89 +236,12 @@ Azdine — La Ménagère Paris`}
         <div className="stack">
           <div className="card card-padded">
             <div className="eyebrow" style={{ marginBottom: 14 }}>Client</div>
-            <div className="hstack" style={{ gap: 14, marginBottom: 14 }}>
-              <div className="avatar lg bronze">KB</div>
-              <div>
-                <div style={{ fontFamily: "var(--display)", fontSize: 18, fontWeight: 600 }}>Karim Benali</div>
-                <div style={{ fontSize: 12, color: "var(--outline)", marginTop: 2 }}>k.benali@ateliersud.fr</div>
-              </div>
+            <div style={{ fontFamily: "var(--display)", fontSize: 18, fontWeight: 600 }}>{clientName || "—"}</div>
+            {q.profile?.company && <div style={{ fontSize: 12, color: "var(--outline)", marginTop: 2 }}>{q.profile.company}</div>}
+            <div className="hstack" style={{ gap: 6, marginTop: 12 }}>
+              {q.is_b2b ? <span className="pill pill-bronze">PRO</span> : <span className="pill pill-outline">Particulier</span>}
             </div>
-            <div className="hstack" style={{ gap: 6, marginBottom: 14 }}>
-              <span className="pill pill-bronze">PRO</span>
-              <span className="pill pill-outline">12 commandes</span>
-            </div>
-            <div style={{ fontSize: 12, color: "var(--on-surface-variant)", background: "var(--surface-container-low)", padding: 12, borderRadius: 8, lineHeight: 1.6 }}>
-              <strong style={{ fontWeight: 600 }}>SARL Atelier Sud</strong>
-              <br />SIRET 821 234 567 00012
-              <br />TVA FR82 821234567
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
-              <div>
-                <div className="eyebrow" style={{ fontSize: 9 }}>Total dépensé</div>
-                <div style={{ fontFamily: "var(--display)", fontWeight: 600, fontSize: 16, color: "var(--secondary)" }}>84 200 €</div>
-              </div>
-              <div>
-                <div className="eyebrow" style={{ fontSize: 9 }}>Devis demandés</div>
-                <div style={{ fontFamily: "var(--display)", fontWeight: 600, fontSize: 16 }}>7</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="card card-padded">
-            <div className="eyebrow" style={{ marginBottom: 14 }}>Devis similaires</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 12.5 }}>
-              <div style={{ padding: 10, background: "var(--surface-container-low)", borderRadius: 8 }}>
-                <div style={{ fontWeight: 500 }}>Cuisine Noire & Or 320×200</div>
-                <div className="hstack" style={{ marginTop: 4, justifyContent: "space-between" }}>
-                  <span style={{ color: "var(--outline)", fontSize: 11 }}>envoyé en mars</span>
-                  <span className="num" style={{ fontSize: 13 }}>16 200 €</span>
-                </div>
-              </div>
-              <div style={{ padding: 10, background: "var(--surface-container-low)", borderRadius: 8 }}>
-                <div style={{ fontWeight: 500 }}>Cuisine Noire & Or 380×240</div>
-                <div className="hstack" style={{ marginTop: 4, justifyContent: "space-between" }}>
-                  <span style={{ color: "var(--outline)", fontSize: 11 }}>envoyé en février</span>
-                  <span className="num" style={{ fontSize: 13 }}>19 800 €</span>
-                </div>
-              </div>
-              <div style={{ padding: 10, background: "rgba(16,185,129,0.06)", borderRadius: 8 }}>
-                <div style={{ fontWeight: 500 }}>Cuisine Marbre + Or 350×220</div>
-                <div className="hstack" style={{ marginTop: 4, justifyContent: "space-between" }}>
-                  <span style={{ color: "var(--success)", fontWeight: 600, fontSize: 11 }}>accepté en avril</span>
-                  <span className="num" style={{ fontSize: 13 }}>22 400 €</span>
-                </div>
-              </div>
-            </div>
-            <a className="card-link" style={{ display: "inline-block", marginTop: 12 }}>
-              Voir l&apos;historique →
-            </a>
-          </div>
-
-          <div className="card card-padded">
-            <div className="eyebrow" style={{ marginBottom: 14 }}>Statut</div>
-            <div className="timeline">
-              <div className="tl-row">
-                <span className="tl-dot" style={{ background: "var(--warning)" }}></span>
-                <div className="tl-text">
-                  <div>En attente de devis</div>
-                  <div className="tl-meta">3 mai · 13:55 — client</div>
-                </div>
-              </div>
-              <div className="tl-row">
-                <span className="tl-dot" style={{ background: "var(--surface-dim)" }}></span>
-                <div className="tl-text" style={{ color: "var(--outline)" }}>
-                  <div>Devis envoyé</div>
-                  <div className="tl-meta">—</div>
-                </div>
-              </div>
-              <div className="tl-row">
-                <span className="tl-dot" style={{ background: "var(--surface-dim)" }}></span>
-                <div className="tl-text" style={{ color: "var(--outline)" }}>
-                  <div>Accepté / Refusé</div>
-                  <div className="tl-meta">—</div>
-                </div>
-              </div>
-            </div>
+            {q.profile?.siret && <div style={{ fontSize: 11, color: "var(--outline)", marginTop: 10, fontFamily: "var(--mono)" }}>SIRET {q.profile.siret}</div>}
           </div>
         </div>
       </div>

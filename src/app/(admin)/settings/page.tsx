@@ -1,238 +1,190 @@
-import { Plus, Download } from "lucide-react";
+"use client";
 
-const INTEGRATIONS: { n: string; s: string; c: string }[] = [
-  { n: "Stripe", s: "Activé", c: "success" },
-  { n: "Google Analytics", s: "Activé", c: "success" },
-  { n: "Mailchimp", s: "Connecter", c: "outline" },
-  { n: "Meta Pixel", s: "Connecter", c: "outline" },
-  { n: "Klaviyo", s: "Connecter", c: "outline" },
-  { n: "API publique", s: "Lecture seule", c: "navy" },
-];
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { adminApi, api } from "@/lib/api";
+
+interface StoreSettings {
+  storeName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  warehouseAddress: string | null;
+  siret: string | null;
+  tvaIntracom: string | null;
+  tvaRate: number;
+  freeShippingThreshold: number | null;
+  autoShippingByWeight: boolean;
+  maintenanceMode: boolean;
+}
+interface ZoneFee {
+  zone: string;
+  delay: string;
+  fee: number;
+  isActive: boolean;
+}
+
+const ZONE_LABEL: Record<string, string> = {
+  metropole: "🇫🇷 Métropole",
+  reunion: "🌴 La Réunion",
+  mayotte: "🌴 Mayotte",
+  guadeloupe: "🌴 Guadeloupe",
+  martinique: "🌴 Martinique",
+  guyane: "🌴 Guyane",
+};
 
 export default function SettingsPage() {
+  const [s, setS] = useState<StoreSettings | null>(null);
+  const [zones, setZones] = useState<ZoneFee[]>([]);
+  const [savingStore, setSavingStore] = useState(false);
+  const [savingShip, setSavingShip] = useState(false);
+
+  async function load() {
+    const res = (await adminApi.settings.get()) as {
+      settings: StoreSettings;
+      shippingZones: ZoneFee[];
+    };
+    setS(res.settings);
+    setZones(res.shippingZones ?? []);
+  }
+  useEffect(() => {
+    load().catch((e: { message?: string }) =>
+      toast.error(e?.message ?? "Chargement impossible"),
+    );
+  }, []);
+
+  function patch(p: Partial<StoreSettings>) {
+    setS((cur) => (cur ? { ...cur, ...p } : cur));
+  }
+
+  async function saveStore() {
+    if (!s) return;
+    setSavingStore(true);
+    try {
+      await adminApi.settings.update({
+        storeName: s.storeName,
+        contactEmail: s.contactEmail,
+        contactPhone: s.contactPhone,
+        warehouseAddress: s.warehouseAddress,
+        siret: s.siret,
+        tvaIntracom: s.tvaIntracom,
+        maintenanceMode: s.maintenanceMode,
+      });
+      toast.success("Boutique enregistrée");
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Échec");
+    } finally {
+      setSavingStore(false);
+    }
+  }
+
+  async function saveShipping() {
+    if (!s) return;
+    setSavingShip(true);
+    try {
+      await adminApi.settings.update({
+        freeShippingThreshold: s.freeShippingThreshold,
+        autoShippingByWeight: s.autoShippingByWeight,
+      });
+      for (const z of zones) {
+        await api.put("/admin/settings/shipping-zone", {
+          zone: z.zone,
+          delay: z.delay,
+          feeCents: Math.round(z.fee * 100),
+          isActive: z.isActive,
+        });
+      }
+      toast.success("Livraison enregistrée");
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Échec");
+    } finally {
+      setSavingShip(false);
+    }
+  }
+
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <h1 className="page-title">Paramètres</h1>
-          <div className="page-subtitle">
-            Configurez votre boutique, votre compte et vos intégrations
-          </div>
+          <div className="page-subtitle">Configurez votre boutique et la livraison</div>
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20 }}>
-        <div className="card card-padded">
-          <div className="card-title" style={{ marginBottom: 6 }}>Profil administrateur</div>
-          <div style={{ fontSize: 12, color: "var(--outline)", marginBottom: 18 }}>Vos informations personnelles</div>
-          <div className="hstack" style={{ gap: 14, marginBottom: 18 }}>
-            <div className="avatar lg">AZ</div>
-            <a className="card-link">Changer la photo</a>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div className="field"><label className="field-label">Nom complet</label><input className="input" defaultValue="Azdine Khelifa" /></div>
-            <div className="field"><label className="field-label">Email</label><input className="input" defaultValue="azdine@lamenagereparis.fr" /></div>
-            <div className="field"><label className="field-label">Téléphone</label><input className="input" defaultValue="+33 6 12 34 56 78" /></div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <div className="field">
-                <label className="field-label">Langue</label>
-                <div className="select-wrap" style={{ width: "100%" }}>
-                  <select style={{ width: "100%" }} defaultValue="fr"><option value="fr">Français</option><option>English</option></select>
-                </div>
-              </div>
-              <div className="field">
-                <label className="field-label">Fuseau horaire</label>
-                <div className="select-wrap" style={{ width: "100%" }}>
-                  <select style={{ width: "100%" }}><option>Europe/Paris</option></select>
-                </div>
-              </div>
-            </div>
-            <button className="btn btn-primary btn-sm" style={{ alignSelf: "flex-start", marginTop: 8 }}>Enregistrer</button>
-          </div>
-        </div>
-
-        <div className="card card-padded">
-          <div className="card-title" style={{ marginBottom: 6 }}>Sécurité</div>
-          <div style={{ fontSize: 12, color: "var(--outline)", marginBottom: 18 }}>Mot de passe et 2FA</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div className="field"><label className="field-label">Mot de passe actuel</label><input className="input" type="password" defaultValue="••••••••" /></div>
-            <div className="field"><label className="field-label">Nouveau mot de passe</label><input className="input" type="password" /></div>
-            <div className="field"><label className="field-label">Confirmer</label><input className="input" type="password" /></div>
-            <div style={{ padding: 14, background: "var(--surface-container-low)", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ fontWeight: 500, fontSize: 13 }}>2FA · Configuré</div>
-                <div style={{ fontSize: 11, color: "var(--outline)", marginTop: 2 }}>iPhone d&apos;Azdine</div>
-              </div>
-              <a className="card-link">Reconfigurer</a>
-            </div>
-            <div style={{ fontSize: 12, color: "var(--outline)", marginTop: 6 }}>
-              Sessions : Mac · Paris · maintenant<br />
-              iPhone · Paris · il y a 2h
-            </div>
-          </div>
-        </div>
-
+        {/* Boutique (live) */}
         <div className="card card-padded">
           <div className="card-title" style={{ marginBottom: 6 }}>Boutique</div>
           <div style={{ fontSize: 12, color: "var(--outline)", marginBottom: 18 }}>Informations légales et contact</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div className="field"><label className="field-label">Nom de la boutique</label><input className="input" defaultValue="La Ménagère Paris" /></div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <div className="field"><label className="field-label">Email contact</label><input className="input" defaultValue="contact@lamenagereparis.fr" /></div>
-              <div className="field"><label className="field-label">Téléphone</label><input className="input" defaultValue="+33 1 23 45 67 89" /></div>
-            </div>
-            <div className="field">
-              <label className="field-label">Adresse entrepôt</label>
-              <textarea className="textarea" style={{ minHeight: 60 }} defaultValue={"14 rue du Faubourg Saint-Antoine\n75011 Paris"} />
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <div className="field"><label className="field-label">SIRET</label><input className="input mono" defaultValue="821 234 567 00012" /></div>
-              <div className="field"><label className="field-label">TVA intracom</label><input className="input mono" defaultValue="FR82 821234567" /></div>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 6 }}>
-              <div>
-                <div style={{ fontWeight: 500, fontSize: 13 }}>Mode maintenance</div>
-                <div style={{ fontSize: 11, color: "var(--outline)", marginTop: 2 }}>Affiche un écran maintenance dans l&apos;app</div>
+          {s && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div className="field"><label className="field-label">Nom de la boutique</label>
+                <input className="input" value={s.storeName ?? ""} onChange={(e) => patch({ storeName: e.target.value })} /></div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div className="field"><label className="field-label">Email contact</label>
+                  <input className="input" value={s.contactEmail ?? ""} onChange={(e) => patch({ contactEmail: e.target.value })} /></div>
+                <div className="field"><label className="field-label">Téléphone</label>
+                  <input className="input" value={s.contactPhone ?? ""} onChange={(e) => patch({ contactPhone: e.target.value })} /></div>
               </div>
-              <label className="switch"><input type="checkbox" /><span className="slider"></span></label>
+              <div className="field"><label className="field-label">Adresse entrepôt</label>
+                <textarea className="textarea" style={{ minHeight: 60 }} value={s.warehouseAddress ?? ""} onChange={(e) => patch({ warehouseAddress: e.target.value })} /></div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div className="field"><label className="field-label">SIRET</label>
+                  <input className="input mono" value={s.siret ?? ""} onChange={(e) => patch({ siret: e.target.value })} /></div>
+                <div className="field"><label className="field-label">TVA intracom</label>
+                  <input className="input mono" value={s.tvaIntracom ?? ""} onChange={(e) => patch({ tvaIntracom: e.target.value })} /></div>
+              </div>
+              <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: 13 }}>Mode maintenance</div>
+                  <div style={{ fontSize: 11, color: "var(--outline)", marginTop: 2 }}>Affiche un écran maintenance dans l&apos;app</div>
+                </div>
+                <span className="switch"><input type="checkbox" checked={s.maintenanceMode} onChange={(e) => patch({ maintenanceMode: e.target.checked })} /><span className="slider"></span></span>
+              </label>
+              <button className="btn btn-primary btn-sm" style={{ alignSelf: "flex-start" }} onClick={saveStore} disabled={savingStore}>
+                {savingStore ? "Enregistrement…" : "Enregistrer"}
+              </button>
             </div>
-          </div>
+          )}
         </div>
 
+        {/* Livraison (live) */}
         <div className="card card-padded">
           <div className="card-title" style={{ marginBottom: 6 }}>Livraison</div>
           <div style={{ fontSize: 12, color: "var(--outline)", marginBottom: 18 }}>Délais et frais par zone</div>
           <table className="tbl" style={{ marginBottom: 14 }}>
-            <thead><tr><th>Zone</th><th>Délai</th><th style={{ textAlign: "right" }}>Frais</th></tr></thead>
+            <thead><tr><th>Zone</th><th>Délai</th><th style={{ textAlign: "right" }}>Frais (€)</th></tr></thead>
             <tbody>
-              <tr><td>🇫🇷 Métropole</td><td>2-3 semaines</td><td style={{ textAlign: "right" }} className="num">0 €</td></tr>
-              <tr><td>🌴 La Réunion</td><td>8-12 semaines</td><td style={{ textAlign: "right" }} className="num">150 €</td></tr>
-              <tr><td>🌴 Mayotte</td><td>8-12 semaines</td><td style={{ textAlign: "right" }} className="num">180 €</td></tr>
-              <tr><td>🌴 Guadeloupe</td><td>8-12 semaines</td><td style={{ textAlign: "right" }} className="num">150 €</td></tr>
-              <tr><td>🌴 Martinique</td><td>8-12 semaines</td><td style={{ textAlign: "right" }} className="num">150 €</td></tr>
-              <tr><td>🌴 Guyane</td><td>8-12 semaines</td><td style={{ textAlign: "right" }} className="num">200 €</td></tr>
+              {zones.map((z, i) => (
+                <tr key={z.zone}>
+                  <td>{ZONE_LABEL[z.zone] ?? z.zone}</td>
+                  <td>
+                    <input className="input" style={{ height: 32, fontSize: 12 }} value={z.delay}
+                      onChange={(e) => setZones((zs) => zs.map((x, j) => (j === i ? { ...x, delay: e.target.value } : x)))} />
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    <input className="input num" style={{ height: 32, width: 90, textAlign: "right", fontSize: 12 }} type="number" value={z.fee}
+                      onChange={(e) => setZones((zs) => zs.map((x, j) => (j === i ? { ...x, fee: Number(e.target.value) } : x)))} />
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
-          <div className="field" style={{ marginBottom: 14 }}>
-            <label className="field-label">Seuil franco de port</label>
-            <input className="input" defaultValue="1500 €" />
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 13 }}>Calcul auto selon poids/volume</span>
-            <label className="switch"><input type="checkbox" defaultChecked /><span className="slider"></span></label>
-          </div>
-        </div>
-
-        <div className="card card-padded">
-          <div className="card-title" style={{ marginBottom: 6 }}>Paiements</div>
-          <div style={{ fontSize: 12, color: "var(--outline)", marginBottom: 18 }}>Méthodes de paiement & TVA</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", border: "1px solid var(--outline-soft)", borderRadius: 10 }}>
-              <div className="hstack" style={{ gap: 10 }}>
-                <span style={{ fontWeight: 700, color: "#635bff", fontSize: 13 }}>stripe</span>
-                <span style={{ fontSize: 11, color: "var(--outline)" }}>Compte test</span>
+          {s && (
+            <>
+              <div className="field" style={{ marginBottom: 14 }}>
+                <label className="field-label">Seuil franco de port (€)</label>
+                <input className="input" type="number" value={s.freeShippingThreshold ?? 0}
+                  onChange={(e) => patch({ freeShippingThreshold: Number(e.target.value) })} />
               </div>
-              <span className="pill pill-success-soft">Connecté</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", border: "1px solid var(--outline-soft)", borderRadius: 10 }}>
-              <span style={{ fontWeight: 600, fontSize: 13, color: "#003087" }}>PayPal</span>
-              <a className="card-link">Connecter</a>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", border: "1px solid var(--outline-soft)", borderRadius: 10 }}>
-              <span style={{ fontSize: 13 }}>Virement bancaire</span>
-              <span className="pill pill-success-soft">Activé</span>
-            </div>
-          </div>
-          <div className="field" style={{ marginBottom: 14 }}>
-            <label className="field-label">TVA appliquée</label>
-            <div className="select-wrap" style={{ width: "100%" }}>
-              <select style={{ width: "100%" }} defaultValue="20"><option value="20">20% (taux normal)</option></select>
-            </div>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 13 }}>Acompte 30% &gt; 5000 €</span>
-            <label className="switch"><input type="checkbox" defaultChecked /><span className="slider"></span></label>
-          </div>
-        </div>
-
-        <div className="card card-padded">
-          <div className="card-title" style={{ marginBottom: 6 }}>Notifications admin</div>
-          <div style={{ fontSize: 12, color: "var(--outline)", marginBottom: 18 }}>Quand vous voulez être prévenu</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
-              <span>Email · nouvelle commande</span>
-              <label className="switch"><input type="checkbox" defaultChecked /><span className="slider"></span></label>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
-              <span>Email · nouveau devis</span>
-              <label className="switch"><input type="checkbox" defaultChecked /><span className="slider"></span></label>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
-              <span>Email · nouveau message</span>
-              <label className="switch"><input type="checkbox" defaultChecked /><span className="slider"></span></label>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
-              <span>Push browser · commande</span>
-              <label className="switch"><input type="checkbox" /><span className="slider"></span></label>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
-              <span>Récap quotidien (9h)</span>
-              <label className="switch"><input type="checkbox" defaultChecked /><span className="slider"></span></label>
-            </div>
-          </div>
-        </div>
-
-        <div className="card card-padded">
-          <div className="card-title" style={{ marginBottom: 6 }}>Équipe</div>
-          <div style={{ fontSize: 12, color: "var(--outline)", marginBottom: 18 }}>Membres ayant accès au back-office</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 14px", border: "1px solid var(--outline-soft)", borderRadius: 10 }}>
-              <div className="avatar md">AZ</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 500, fontSize: 13.5 }}>Azdine Khelifa</div>
-                <div style={{ fontSize: 11, color: "var(--outline)" }}>azdine@lamenagereparis.fr · maintenant</div>
-              </div>
-              <span className="pill pill-bronze">Propriétaire</span>
-            </div>
-          </div>
-          <button className="btn btn-outline btn-sm" style={{ marginTop: 14 }}>
-            <Plus size={14} strokeWidth={2} />
-            <span>Inviter un membre</span>
+              <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <span style={{ fontSize: 13 }}>Calcul auto selon poids/volume</span>
+                <span className="switch"><input type="checkbox" checked={s.autoShippingByWeight} onChange={(e) => patch({ autoShippingByWeight: e.target.checked })} /><span className="slider"></span></span>
+              </label>
+            </>
+          )}
+          <button className="btn btn-primary btn-sm" onClick={saveShipping} disabled={savingShip}>
+            {savingShip ? "Enregistrement…" : "Enregistrer la livraison"}
           </button>
-        </div>
-
-        <div className="card card-padded">
-          <div className="card-title" style={{ marginBottom: 6 }}>Intégrations</div>
-          <div style={{ fontSize: 12, color: "var(--outline)", marginBottom: 18 }}>Connectez vos outils favoris</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {INTEGRATIONS.map((i) => (
-              <div key={i.n} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", border: "1px solid var(--outline-soft)", borderRadius: 10 }}>
-                <span style={{ fontSize: 13, fontWeight: 500 }}>{i.n}</span>
-                <span className={`pill pill-${i.c}-soft`}>{i.s}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="card card-padded" style={{ gridColumn: "span 2" }}>
-          <div className="card-title" style={{ marginBottom: 18 }}>Avancé</div>
-          <div className="hstack" style={{ gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
-            <button className="btn btn-outline btn-sm">
-              <Download size={14} strokeWidth={1.8} />
-              <span>Exporter toutes les données</span>
-            </button>
-            <button className="btn btn-outline btn-sm">Logs d&apos;audit</button>
-            <button className="btn btn-outline btn-sm">API &amp; Webhooks</button>
-          </div>
-          <div style={{ borderTop: "1px solid var(--outline-soft)", paddingTop: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 14, color: "var(--error)" }}>Zone dangereuse</div>
-              <div style={{ fontSize: 12, color: "var(--outline)", marginTop: 2 }}>
-                Cette action est irréversible et supprimera toutes vos données.
-              </div>
-            </div>
-            <button className="btn btn-danger btn-sm">Supprimer la boutique</button>
-          </div>
         </div>
       </div>
     </div>
