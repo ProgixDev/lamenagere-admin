@@ -70,11 +70,12 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
 
   const [form, setForm] = useState<Form>(EMPTY);
   const [images, setImages] = useState<string[]>([]);
-  const [videoUrl, setVideoUrl] = useState("");
+  const [videos, setVideos] = useState<string[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     adminApi.categories
@@ -120,7 +121,7 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
         });
         const media = (p.media ?? []) as { url: string; type: string }[];
         setImages(media.filter((m) => m.type === "image").map((m) => m.url));
-        setVideoUrl(media.find((m) => m.type === "video")?.url ?? "");
+        setVideos(media.filter((m) => m.type === "video").map((m) => m.url));
       })
       .catch((e: { message?: string }) => toast.error(e?.message ?? "Produit introuvable"))
       .finally(() => setLoading(false));
@@ -141,6 +142,21 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
       }
     }
     if (fileRef.current) fileRef.current.value = "";
+  }
+
+  async function onPickVideos(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    for (const file of files) {
+      try {
+        const { url } = await api.upload(file, "products");
+        setVideos((vids) => [...vids, url]);
+      } catch (err) {
+        toast.error(
+          (err as { message?: string })?.message ?? "Téléversement vidéo échoué",
+        );
+      }
+    }
+    if (videoRef.current) videoRef.current.value = "";
   }
 
   function buildPayload(status: Status) {
@@ -175,7 +191,7 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
       seoDescription: form.seoDescription || undefined,
       isFeatured: form.isFeatured,
       imageUrls: images,
-      videoUrls: videoUrl ? [videoUrl] : [],
+      videoUrls: videos,
     };
   }
 
@@ -226,11 +242,14 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
         </div>
         <div className="hstack">
           <Link href="/products" className="btn btn-outline btn-sm">Annuler</Link>
-          <button type="button" className="btn btn-outline btn-sm" disabled={saving} onClick={() => save("brouillon")}>
-            Enregistrer en brouillon
-          </button>
-          <button type="button" className="btn btn-primary" disabled={saving} onClick={() => save("publie")}>
-            {saving ? "…" : "Publier"}
+          {form.status !== "publie" && (
+            <button type="button" className="btn btn-outline btn-sm" disabled={saving} onClick={() => save("publie")}>
+              Publier
+            </button>
+          )}
+          {/* Saves with the status selected in the "Statut" toggle (incl. Archivé). */}
+          <button type="button" className="btn btn-primary" disabled={saving} onClick={() => save(form.status)}>
+            {saving ? "…" : "Enregistrer"}
           </button>
         </div>
       </div>
@@ -298,9 +317,33 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
               </div>
             </div>
             <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onPickImages} />
-            <div className="field" style={{ marginTop: 18 }}>
-              <label className="field-label">Lien vidéo (optionnel)</label>
-              <input className="input" placeholder="YouTube ou MP4..." value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} />
+
+            <div style={{ marginTop: 20 }}>
+              <label className="field-label" style={{ display: "block", marginBottom: 8 }}>
+                Vidéos (optionnel)
+              </label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {videos.map((url) => (
+                  <div key={url} style={{ position: "relative", borderRadius: 10, overflow: "hidden", background: "#000" }}>
+                    <video src={url} controls style={{ width: "100%", maxHeight: 200, display: "block" }} />
+                    <button
+                      type="button"
+                      onClick={() => setVideos((vs) => vs.filter((u) => u !== url))}
+                      style={{ position: "absolute", top: 8, right: 8, width: 24, height: 24, borderRadius: "50%", background: "rgba(0,0,0,0.7)", color: "#fff", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+                <div
+                  onClick={() => videoRef.current?.click()}
+                  style={{ padding: "18px", borderRadius: 10, background: "var(--surface-container-low)", border: "1.5px dashed var(--outline-variant)", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: "var(--outline)", cursor: "pointer", fontSize: 13 }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                  <span>Ajouter une vidéo (MP4, max 100 Mo)</span>
+                </div>
+              </div>
+              <input ref={videoRef} type="file" accept="video/*" multiple hidden onChange={onPickVideos} />
             </div>
           </div>
 

@@ -91,6 +91,7 @@ export const api = {
 export const adminApi = {
   dashboard: () => api.get("/admin/dashboard"),
   stats: () => api.get("/admin/stats"),
+  analytics: (days = 30) => api.get(`/admin/analytics?days=${days}`),
 
   products: {
     list: (qs = "") => api.get(`/admin/products${qs}`),
@@ -164,5 +165,11 @@ export const adminApi = {
     list: (status = "") => api.get(`/admin/campaigns${status ? `?status=${status}` : ""}`),
     create: (body: unknown) => api.post("/admin/campaigns", body),
     send: (id: string) => api.post(`/admin/campaigns/${id}/send`),
+  },
+  tickets: {
+    list: (qs = "") => api.get(`/admin/tickets${qs}`),
+    detail: (id: string) => api.get(`/admin/tickets/${id}`),
+    update: (id: string, body: unknown) => api.put(`/admin/tickets/${id}`, body),
+    reply: (id: string, body: unknown) => api.post(`/admin/tickets/${id}/messages`, body),
   },
 };

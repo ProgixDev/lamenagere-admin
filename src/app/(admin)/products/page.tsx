@@ -104,7 +104,7 @@ export default function ProductsPage() {
     });
   }
 
-  async function bulk(action: "publish" | "draft" | "delete") {
+  async function bulk(action: "publish" | "draft" | "archive" | "delete") {
     try {
       await adminApi.products.bulk({ ids: [...selected], action });
       toast.success("Action appliquée");
@@ -265,6 +265,7 @@ export default function ProductsPage() {
           <div style={{ height: 24, width: 1, background: "var(--outline-soft)" }}></div>
           <button className="btn btn-outline btn-sm" onClick={() => bulk("publish")}>Publier</button>
           <button className="btn btn-outline btn-sm" onClick={() => bulk("draft")}>Mettre en brouillon</button>
+          <button className="btn btn-outline btn-sm" onClick={() => bulk("archive")}>Archiver</button>
           <button className="btn btn-danger btn-sm" onClick={() => bulk("delete")}>Supprimer</button>
         </div>
       )}

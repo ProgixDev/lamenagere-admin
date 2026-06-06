@@ -9,6 +9,8 @@ import {
   Star,
   Bell,
   Settings,
+  BarChart3,
+  LifeBuoy,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,10 +25,12 @@ export type NavItem = {
 
 export const NAV: NavItem[] = [
   { key: "dashboard", label: "Tableau de bord", href: "/dashboard", icon: LayoutGrid },
+  { key: "analytics", label: "Analytics", href: "/analytics", icon: BarChart3 },
   { key: "products", label: "Produits", href: "/products", icon: Package, badge: "32" },
   { key: "orders", label: "Commandes", href: "/orders", icon: ShoppingCart, badge: "12", badgeClass: "warn" },
   { key: "quotes", label: "Devis", href: "/quotes", icon: FileText, badge: "12", badgeClass: "accent" },
   { key: "messages", label: "Messages", href: "/messages", icon: MessageSquare, badge: "5", badgeClass: "warn" },
+  { key: "tickets", label: "Tickets SAV", href: "/tickets", icon: LifeBuoy },
   { key: "customers", label: "Clients", href: "/customers", icon: Users },
   { key: "categories", label: "Catégories", href: "/categories", icon: FolderTree },
   { key: "featured", label: "Mise en avant", href: "/featured", icon: Star },
@@ -38,6 +42,10 @@ export type Crumb = { label: string; href?: string };
 
 const STATIC_CRUMBS: Record<string, Crumb[]> = {
   "/dashboard": [{ label: "Tableau de bord" }],
+  "/analytics": [
+    { label: "Tableau de bord", href: "/dashboard" },
+    { label: "Analytics" },
+  ],
   "/products": [
     { label: "Tableau de bord", href: "/dashboard" },
     { label: "Produits" },
@@ -58,6 +66,10 @@ const STATIC_CRUMBS: Record<string, Crumb[]> = {
   "/messages": [
     { label: "Tableau de bord", href: "/dashboard" },
     { label: "Messages" },
+  ],
+  "/tickets": [
+    { label: "Tableau de bord", href: "/dashboard" },
+    { label: "Tickets SAV" },
   ],
   "/customers": [
     { label: "Tableau de bord", href: "/dashboard" },
@@ -126,10 +138,12 @@ export function getBreadcrumb(pathname: string): Crumb[] {
 
 export function getActiveKey(pathname: string): string {
   if (pathname === "/dashboard") return "dashboard";
+  if (pathname.startsWith("/analytics")) return "analytics";
   if (pathname.startsWith("/products")) return "products";
   if (pathname.startsWith("/orders")) return "orders";
   if (pathname.startsWith("/quotes")) return "quotes";
   if (pathname.startsWith("/messages")) return "messages";
+  if (pathname.startsWith("/tickets")) return "tickets";
   if (pathname.startsWith("/customers")) return "customers";
   if (pathname.startsWith("/categories")) return "categories";
   if (pathname.startsWith("/featured")) return "featured";
