@@ -200,5 +200,6 @@ export const adminApi = {
     list: (qs = "") => api.get(`/admin/activity${qs}`),
     byUser: (id: string, limit = 50) =>
       api.get(`/admin/activity/user/${id}?limit=${limit}`),
+    logLogin: () => api.post("/admin/activity/login"),
   },
 };

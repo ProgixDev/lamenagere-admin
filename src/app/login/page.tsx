@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { setToken, setStoredUser } from "@/lib/api";
+import { setToken, setStoredUser, adminApi } from "@/lib/api";
 import { AdminRole } from "@/lib/types";
 
 export default function LoginPage() {
@@ -50,6 +50,8 @@ export default function LoginPage() {
         firstName: profile?.first_name ?? "",
         lastName: profile?.last_name ?? "",
       });
+      // Log the sign-in event — fire and forget, never block navigation
+      adminApi.activity.logLogin().catch(() => {});
       router.push("/dashboard");
     } catch {
       toast.error("Connexion impossible");
