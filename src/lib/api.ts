@@ -12,6 +12,7 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
 
 const TOKEN_KEY = "admin_token";
+const USER_KEY = "admin_user";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -22,6 +23,22 @@ export function setToken(token: string | null): void {
   if (typeof window === "undefined") return;
   if (token) window.localStorage.setItem(TOKEN_KEY, token);
   else window.localStorage.removeItem(TOKEN_KEY);
+}
+
+export function getStoredUser(): import("./types").CurrentAdminUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredUser(user: import("./types").CurrentAdminUser | null): void {
+  if (typeof window === "undefined") return;
+  if (user) window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+  else window.localStorage.removeItem(USER_KEY);
 }
 
 export interface ApiError {
@@ -171,5 +188,17 @@ export const adminApi = {
     detail: (id: string) => api.get(`/admin/tickets/${id}`),
     update: (id: string, body: unknown) => api.put(`/admin/tickets/${id}`, body),
     reply: (id: string, body: unknown) => api.post(`/admin/tickets/${id}/messages`, body),
+  },
+  users: {
+    list: () => api.get("/admin/users"),
+    create: (body: unknown) => api.post("/admin/users", body),
+    updateRole: (id: string, role: string) =>
+      api.put(`/admin/users/${id}/role`, { role }),
+    revoke: (id: string) => api.delete(`/admin/users/${id}`),
+  },
+  activity: {
+    list: (qs = "") => api.get(`/admin/activity${qs}`),
+    byUser: (id: string, limit = 50) =>
+      api.get(`/admin/activity/user/${id}?limit=${limit}`),
   },
 };

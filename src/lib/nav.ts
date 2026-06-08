@@ -11,6 +11,8 @@ import {
   Settings,
   BarChart3,
   LifeBuoy,
+  ShieldCheck,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 
@@ -36,6 +38,8 @@ export const NAV: NavItem[] = [
   { key: "featured", label: "Mise en avant", href: "/featured", icon: Star },
   { key: "campaigns", label: "Campagnes", href: "/campaigns", icon: Bell },
   { key: "settings", label: "Paramètres", href: "/settings", icon: Settings },
+  { key: "users", label: "Utilisateurs", href: "/users", icon: ShieldCheck },
+  { key: "activity", label: "Journal d'activité", href: "/activity", icon: Activity },
 ];
 
 export type Crumb = { label: string; href?: string };
@@ -90,6 +94,14 @@ const STATIC_CRUMBS: Record<string, Crumb[]> = {
   "/settings": [
     { label: "Tableau de bord", href: "/dashboard" },
     { label: "Paramètres" },
+  ],
+  "/users": [
+    { label: "Tableau de bord", href: "/dashboard" },
+    { label: "Utilisateurs" },
+  ],
+  "/activity": [
+    { label: "Tableau de bord", href: "/dashboard" },
+    { label: "Journal d'activité" },
   ],
 };
 
@@ -149,5 +161,7 @@ export function getActiveKey(pathname: string): string {
   if (pathname.startsWith("/featured")) return "featured";
   if (pathname.startsWith("/campaigns")) return "campaigns";
   if (pathname.startsWith("/settings")) return "settings";
+  if (pathname.startsWith("/users")) return "users";
+  if (pathname.startsWith("/activity")) return "activity";
   return "";
 }

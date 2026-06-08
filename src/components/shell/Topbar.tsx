@@ -1,32 +1,23 @@
 "use client";
 
-import { useEffect, useState, Fragment } from "react";
+import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, ExternalLink, Search } from "lucide-react";
-import {
-  CommandDialog,
-  CommandEmpty,
-  CommandInput,
-  CommandList,
-} from "@/components/ui/command";
+import { Bell } from "lucide-react";
 import { getBreadcrumb } from "@/lib/nav";
+import { useCurrentUser } from "@/lib/user-context";
+import { ADMIN_ROLE_LABELS } from "@/lib/types";
 
 export function Topbar() {
   const pathname = usePathname();
   const crumbs = getBreadcrumb(pathname);
-  const [open, setOpen] = useState(false);
+  const { user } = useCurrentUser();
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setOpen((v) => !v);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  const initials = user
+    ? `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || user.email[0].toUpperCase()
+    : "?";
+
+  const roleLabel = user ? (ADMIN_ROLE_LABELS[user.role] ?? user.role) : "";
 
   return (
     <div className="topbar">
@@ -47,39 +38,32 @@ export function Topbar() {
           );
         })}
       </div>
-      <div className="topbar-search">
-        <span className="si">
-          <Search size={16} strokeWidth={1.8} />
-        </span>
-        <input
-          placeholder="Rechercher commandes, produits, clients..."
-          onFocus={() => setOpen(true)}
-          readOnly
-        />
-        <span className="kbd">⌘K</span>
-      </div>
       <div className="topbar-actions">
         <button className="icon-btn" aria-label="Notifications">
           <Bell size={18} strokeWidth={1.6} />
           <span className="dot"></span>
         </button>
-        <a
-          href="#"
-          className="btn btn-outline btn-sm"
-          style={{ gap: 6 }}
-        >
-          <ExternalLink size={14} strokeWidth={1.8} />
-          <span>Voir la boutique</span>
-        </a>
-        <div className="avatar sm">AZ</div>
+        {user && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1 }}>
+              {user.firstName || user.email}
+              {roleLabel && (
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: 11,
+                    color: "var(--primary)",
+                    fontWeight: 600,
+                  }}
+                >
+                  {roleLabel}
+                </span>
+              )}
+            </span>
+            <div className="avatar sm">{initials}</div>
+          </div>
+        )}
       </div>
-
-      <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput placeholder="Rechercher commandes, produits, clients..." />
-        <CommandList>
-          <CommandEmpty>Recherche bientôt disponible</CommandEmpty>
-        </CommandList>
-      </CommandDialog>
     </div>
   );
 }

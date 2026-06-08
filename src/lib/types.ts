@@ -1,4 +1,60 @@
 export type AccountType = "particulier" | "professionnel";
+
+export type AdminRole =
+  | "super_admin"
+  | "admin"
+  | "manager"
+  | "editor"
+  | "support";
+
+export const ADMIN_ROLE_LABELS: Record<AdminRole, string> = {
+  super_admin: "Super Admin",
+  admin: "Admin",
+  manager: "Manager",
+  editor: "Éditeur",
+  support: "Support",
+};
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: AdminRole;
+  lastActivityAt: string | null;
+  createdAt: string;
+}
+
+export type ActivityKind =
+  | "order"
+  | "quote"
+  | "message"
+  | "product"
+  | "customer"
+  | "auth"
+  | "campaign"
+  | "system";
+
+export interface ActivityEntry {
+  id: string;
+  kind: ActivityKind;
+  actorId: string | null;
+  actorEmail: string | null;
+  summary: string;
+  entityRef: string | null;
+  action: string | null;
+  ipAddress: string | null;
+  meta: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface CurrentAdminUser {
+  id: string;
+  email: string;
+  role: AdminRole;
+  firstName: string;
+  lastName: string;
+}
 export type ProductType = "standard" | "configurable" | "quote_only";
 export type PriceMode = "fixed" | "calculated" | "quote";
 export type ShippingZone =

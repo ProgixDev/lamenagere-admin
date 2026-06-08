@@ -1098,3 +1098,37 @@ input, textarea, select { font-family: inherit; color: inherit; }
 @media (max-width: 1280px) { .kanban { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 768px) { .kanban { grid-template-columns: 1fr; } }
 .kanban-col { background: var(--surface-container-low); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-height: 200px; }
+
+/* ============ MODAL ============ */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(26,28,28,0.32);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 48px 16px;
+  overflow-y: auto;
+  animation: modal-fade 0.14s ease;
+}
+.modal-card {
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow-pop);
+  border: 1px solid var(--outline-soft);
+  width: 100%; max-width: 520px;
+  margin: auto;
+  animation: modal-pop 0.16s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.modal-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; padding: 22px 24px 16px;
+  border-bottom: 1px solid var(--outline-soft);
+}
+.modal-body { padding: 22px 24px; }
+.modal-footer {
+  display: flex; gap: 8px; padding: 16px 24px;
+  border-top: 1px solid var(--outline-soft);
+  background: var(--surface-container-low);
+  border-radius: 0 0 16px 16px;
+}
+@keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-pop { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }

@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { setToken } from "@/lib/api";
+import { setToken, setStoredUser } from "@/lib/api";
+import { AdminRole } from "@/lib/types";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,20 +28,28 @@ export default function LoginPage() {
         return;
       }
 
-      // Only admins / super_admins may enter (backend enforces this too).
+      const ADMIN_ROLES = ["super_admin", "admin", "manager", "editor", "support"];
+
       const { data: profile } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, first_name, last_name")
         .eq("id", data.user.id)
         .single();
       const role = profile?.role as string | undefined;
-      if (role !== "admin" && role !== "super_admin") {
+      if (!role || !ADMIN_ROLES.includes(role)) {
         await supabase.auth.signOut();
         toast.error("Accès réservé aux administrateurs");
         return;
       }
 
       setToken(data.session.access_token);
+      setStoredUser({
+        id: data.user.id,
+        email: data.user.email ?? email.trim(),
+        role: role as AdminRole,
+        firstName: profile?.first_name ?? "",
+        lastName: profile?.last_name ?? "",
+      });
       router.push("/dashboard");
     } catch {
       toast.error("Connexion impossible");
