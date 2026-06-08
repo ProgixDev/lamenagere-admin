@@ -1,14 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Pencil, ShieldCheck } from "lucide-react";
+import { Plus, Trash2, Pencil, ShieldCheck, Users, X, Check } from "lucide-react";
 import { toast } from "sonner";
 import { adminApi } from "@/lib/api";
-import {
-  AdminUser,
-  AdminRole,
-  ADMIN_ROLE_LABELS,
-} from "@/lib/types";
+import { AdminUser, AdminRole, ADMIN_ROLE_LABELS } from "@/lib/types";
 import { useCurrentUser } from "@/lib/user-context";
 
 const ROLE_OPTIONS: { value: AdminRole; label: string }[] = [
@@ -18,29 +14,17 @@ const ROLE_OPTIONS: { value: AdminRole; label: string }[] = [
   { value: "support", label: "Support" },
 ];
 
-const ROLE_COLORS: Record<AdminRole, string> = {
-  super_admin: "#7C3AED",
-  admin: "#2563EB",
-  manager: "#059669",
-  editor: "#D97706",
-  support: "#6B7280",
+const ROLE_PILL: Record<AdminRole, string> = {
+  super_admin: "pill pill-navy",
+  admin: "pill pill-navy-soft",
+  manager: "pill pill-success-soft",
+  editor: "pill pill-warning-soft",
+  support: "pill pill-outline",
 };
 
 function RoleBadge({ role }: { role: AdminRole }) {
   return (
-    <span
-      style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: 4,
-        fontSize: 11,
-        fontWeight: 600,
-        letterSpacing: "0.03em",
-        background: ROLE_COLORS[role] + "18",
-        color: ROLE_COLORS[role],
-        border: `1px solid ${ROLE_COLORS[role]}30`,
-      }}
-    >
+    <span className={ROLE_PILL[role] ?? "pill pill-outline"}>
       {ADMIN_ROLE_LABELS[role] ?? role}
     </span>
   );
@@ -72,9 +56,7 @@ export default function UsersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editRole, setEditRole] = useState<AdminRole>("manager");
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
@@ -128,142 +110,162 @@ export default function UsersPage() {
 
   if (me?.role !== "super_admin") {
     return (
-      <div className="page-content">
-        <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
-          Accès réservé au super administrateur.
+      <div className="page">
+        <div className="card card-padded" style={{ textAlign: "center", padding: "64px 40px", color: "var(--on-surface-variant)" }}>
+          <ShieldCheck size={32} strokeWidth={1.4} style={{ marginBottom: 12, opacity: 0.4 }} />
+          <p style={{ fontSize: 15, fontWeight: 500 }}>Accès réservé au super administrateur.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="page-content">
+    <div className="page">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Utilisateurs admin</h1>
-          <p className="page-subtitle">
-            Gérez les accès et rôles des membres de l&apos;équipe.
-          </p>
+          <h1 className="page-title">Utilisateurs</h1>
+          <p className="page-subtitle">Gérez les accès et rôles des membres de l&apos;équipe.</p>
         </div>
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={() => setShowCreate(true)}
-          style={{ gap: 6 }}
-        >
-          <Plus size={14} strokeWidth={2} />
-          Inviter un utilisateur
-        </button>
+        {!showCreate && (
+          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
+            <Plus size={14} strokeWidth={2.2} />
+            Inviter un utilisateur
+          </button>
+        )}
       </div>
 
+      {/* ── Invite form ── */}
       {showCreate && (
         <div
+          className="card"
           style={{
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            padding: 24,
-            marginBottom: 24,
+            marginBottom: 28,
+            borderLeft: "3px solid var(--primary)",
           }}
         >
-          <h3 style={{ marginBottom: 16, fontSize: 15, fontWeight: 600 }}>
-            <ShieldCheck size={15} style={{ marginRight: 6, verticalAlign: "middle" }} />
-            Nouvel utilisateur admin
-          </h3>
-          <form onSubmit={handleCreate}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-              <div className="field">
-                <label className="field-label">Prénom</label>
-                <input
-                  className="input"
-                  value={form.firstName}
-                  onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="field">
-                <label className="field-label">Nom</label>
-                <input
-                  className="input"
-                  value={form.lastName}
-                  onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="field">
-                <label className="field-label">Email</label>
-                <input
-                  className="input"
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="field">
-                <label className="field-label">Mot de passe temporaire</label>
-                <input
-                  className="input"
-                  type="password"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  required
-                  minLength={8}
-                />
-              </div>
-              <div className="field">
-                <label className="field-label">Rôle</label>
-                <select
-                  className="input"
-                  value={form.role}
-                  onChange={(e) => setForm({ ...form, role: e.target.value as AdminRole })}
-                >
-                  {ROLE_OPTIONS.map((r) => (
-                    <option key={r.value} value={r.value}>
-                      {r.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
-                {saving ? "Création…" : "Créer le compte"}
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                onClick={() => { setShowCreate(false); setForm(EMPTY_FORM); }}
+          <div className="card-header">
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  background: "rgba(0,36,68,0.08)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--primary)",
+                }}
               >
-                Annuler
-              </button>
+                <ShieldCheck size={16} strokeWidth={1.8} />
+              </div>
+              <span className="card-title" style={{ fontSize: 15 }}>Nouvel utilisateur admin</span>
             </div>
-          </form>
+            <button className="icon-btn" onClick={() => { setShowCreate(false); setForm(EMPTY_FORM); }}>
+              <X size={16} strokeWidth={1.8} />
+            </button>
+          </div>
+
+          <div style={{ padding: "20px 24px 24px" }}>
+            <form onSubmit={handleCreate}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                  gap: "0 20px",
+                }}
+              >
+                <div className="field">
+                  <label className="field-label">Prénom</label>
+                  <input className="input" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} required />
+                </div>
+                <div className="field">
+                  <label className="field-label">Nom</label>
+                  <input className="input" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} required />
+                </div>
+                <div className="field">
+                  <label className="field-label">Email</label>
+                  <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+                </div>
+                <div className="field">
+                  <label className="field-label">Mot de passe temporaire</label>
+                  <input className="input" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={8} />
+                </div>
+                <div className="field">
+                  <label className="field-label">Rôle</label>
+                  <select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as AdminRole })}>
+                    {ROLE_OPTIONS.map((r) => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
+                  {saving ? "Création…" : "Créer le compte"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={() => { setShowCreate(false); setForm(EMPTY_FORM); }}
+                >
+                  Annuler
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
-      <div className="table-wrap">
-        <table className="table">
+      {/* ── Users table ── */}
+      <div className="card">
+        <div className="card-header">
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span className="card-title">Équipe</span>
+            {!loading && (
+              <span className="pill pill-outline" style={{ fontSize: 11 }}>
+                {users.length} membre{users.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+          {showCreate ? null : (
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowCreate(true)} style={{ gap: 6 }}>
+              <Plus size={13} strokeWidth={2.2} />
+              Inviter
+            </button>
+          )}
+        </div>
+
+        <table className="tbl">
           <thead>
             <tr>
-              <th>Utilisateur</th>
+              <th>Membre</th>
               <th>Email</th>
               <th>Rôle</th>
               <th>Dernière activité</th>
-              <th>Créé le</th>
-              <th></th>
+              <th>Membre depuis</th>
+              <th style={{ width: 80 }}></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: "center", padding: 32, color: "var(--muted)" }}>
-                  Chargement…
+                <td colSpan={6} style={{ textAlign: "center", padding: "48px 16px", color: "var(--on-surface-variant)" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                    <Users size={24} strokeWidth={1.4} style={{ opacity: 0.35 }} />
+                    <span style={{ fontSize: 13 }}>Chargement…</span>
+                  </div>
                 </td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: "center", padding: 32, color: "var(--muted)" }}>
-                  Aucun utilisateur admin.
+                <td colSpan={6} style={{ textAlign: "center", padding: "56px 16px", color: "var(--on-surface-variant)" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                    <Users size={28} strokeWidth={1.3} style={{ opacity: 0.3 }} />
+                    <span style={{ fontSize: 14, fontWeight: 500 }}>Aucun utilisateur admin</span>
+                    <span style={{ fontSize: 13, opacity: 0.6 }}>Invitez votre première personne.</span>
+                  </div>
                 </td>
               </tr>
             ) : (
@@ -274,21 +276,23 @@ export default function UsersPage() {
                 return (
                   <tr key={u.id}>
                     <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         <div className="avatar sm">{initials}</div>
-                        <span style={{ fontWeight: 500 }}>{name}</span>
-                        {isMe && (
-                          <span style={{ fontSize: 11, color: "var(--muted)" }}>(vous)</span>
-                        )}
+                        <div>
+                          <div style={{ fontWeight: 500, fontSize: 13, lineHeight: 1.3 }}>{name}</div>
+                          {isMe && (
+                            <span className="pill pill-outline" style={{ fontSize: 9, marginTop: 3 }}>vous</span>
+                          )}
+                        </div>
                       </div>
                     </td>
-                    <td style={{ color: "var(--muted)", fontSize: 13 }}>{u.email}</td>
+                    <td style={{ color: "var(--on-surface-variant)", fontSize: 13 }}>{u.email}</td>
                     <td>
                       {editingId === u.id ? (
                         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                           <select
                             className="input"
-                            style={{ padding: "2px 6px", fontSize: 12, height: 28 }}
+                            style={{ padding: "4px 8px", fontSize: 12, height: 30, borderRadius: 6 }}
                             value={editRole}
                             onChange={(e) => setEditRole(e.target.value as AdminRole)}
                           >
@@ -297,35 +301,36 @@ export default function UsersPage() {
                             ))}
                           </select>
                           <button
-                            className="btn btn-primary btn-sm"
-                            style={{ padding: "2px 8px", fontSize: 12 }}
+                            className="icon-btn"
+                            style={{ color: "var(--success, #10b981)", background: "rgba(16,185,129,0.08)" }}
                             onClick={() => handleUpdateRole(u.id)}
+                            title="Confirmer"
                           >
-                            OK
+                            <Check size={13} strokeWidth={2.4} />
                           </button>
                           <button
-                            className="btn btn-outline btn-sm"
-                            style={{ padding: "2px 8px", fontSize: 12 }}
+                            className="icon-btn"
                             onClick={() => setEditingId(null)}
+                            title="Annuler"
                           >
-                            ✕
+                            <X size={13} strokeWidth={2} />
                           </button>
                         </div>
                       ) : (
                         <RoleBadge role={u.role} />
                       )}
                     </td>
-                    <td style={{ color: "var(--muted)", fontSize: 13 }}>
+                    <td style={{ color: "var(--on-surface-variant)", fontSize: 13 }}>
                       {u.lastActivityAt
-                        ? new Date(u.lastActivityAt).toLocaleDateString("fr-FR")
-                        : "—"}
+                        ? new Date(u.lastActivityAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
+                        : <span style={{ opacity: 0.4 }}>—</span>}
                     </td>
-                    <td style={{ color: "var(--muted)", fontSize: 13 }}>
-                      {new Date(u.createdAt).toLocaleDateString("fr-FR")}
+                    <td style={{ color: "var(--on-surface-variant)", fontSize: 13 }}>
+                      {new Date(u.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}
                     </td>
                     <td>
                       {!isMe && u.role !== "super_admin" && (
-                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                        <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
                           <button
                             className="icon-btn"
                             title="Modifier le rôle"
@@ -336,7 +341,7 @@ export default function UsersPage() {
                           <button
                             className="icon-btn"
                             title="Révoquer l'accès"
-                            style={{ color: "var(--danger)" }}
+                            style={{ color: "var(--error)" }}
                             onClick={() => handleRevoke(u)}
                           >
                             <Trash2 size={14} strokeWidth={1.8} />
