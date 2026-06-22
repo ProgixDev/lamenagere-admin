@@ -5,11 +5,25 @@ import { toast } from "sonner";
 import { Search, Send, Paperclip, X } from "lucide-react";
 import { adminApi, api } from "@/lib/api";
 
-function MsgAttachments({ items }: { items?: { type: string; url: string }[] }) {
-  if (!items?.length) return null;
+function normalizeAttachment(
+  a: string | { type?: string; url?: string },
+): { type: string; url: string } {
+  if (typeof a === "string") {
+    return { url: a, type: /\.(mp4|mov|m4v|webm|avi|mkv)(\?|$)/i.test(a) ? "video" : "image" };
+  }
+  return { url: a.url ?? "", type: a.type ?? "image" };
+}
+
+function MsgAttachments({
+  items,
+}: {
+  items?: (string | { type?: string; url?: string })[];
+}) {
+  const norm = (items ?? []).map(normalizeAttachment).filter((a) => a.url);
+  if (!norm.length) return null;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 6 }}>
-      {items.map((a, i) =>
+      {norm.map((a, i) =>
         a.type === "video" ? (
           <video key={i} src={a.url} controls style={{ width: 220, maxWidth: "100%", borderRadius: 10, display: "block" }} />
         ) : (
