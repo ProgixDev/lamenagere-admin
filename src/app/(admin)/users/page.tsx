@@ -32,16 +32,14 @@ function RoleBadge({ role }: { role: AdminRole }) {
 
 interface CreateForm {
   email: string;
-  firstName: string;
-  lastName: string;
+  fullName: string;
   password: string;
   role: AdminRole;
 }
 
 const EMPTY_FORM: CreateForm = {
   email: "",
-  firstName: "",
-  lastName: "",
+  fullName: "",
   password: "",
   role: "manager",
 };
@@ -176,12 +174,8 @@ export default function UsersPage() {
                 }}
               >
                 <div className="field">
-                  <label className="field-label">Prénom</label>
-                  <input className="input" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} required />
-                </div>
-                <div className="field">
-                  <label className="field-label">Nom</label>
-                  <input className="input" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} required />
+                  <label className="field-label">Nom complet</label>
+                  <input className="input" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
                 </div>
                 <div className="field">
                   <label className="field-label">Email</label>
@@ -270,8 +264,8 @@ export default function UsersPage() {
               </tr>
             ) : (
               users.map((u) => {
-                const initials = `${u.firstName?.[0] ?? ""}${u.lastName?.[0] ?? ""}`.toUpperCase() || u.email[0].toUpperCase();
-                const name = [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email;
+                const initials = u.fullName.trim().split(/\s+/).map((w) => w[0] ?? "").slice(0, 2).join("").toUpperCase() || u.email[0].toUpperCase();
+                const name = u.fullName || u.email;
                 const isMe = u.id === me?.id;
                 return (
                   <tr key={u.id}>

@@ -27,10 +27,10 @@ export function Sidebar() {
   const visibleNav = NAV.filter((n) => allowedKeys.includes(n.key));
 
   const initials = user
-    ? `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || user.email[0].toUpperCase()
+    ? user.fullName.trim().split(/\s+/).map((w) => w[0] ?? "").slice(0, 2).join("").toUpperCase() || user.email[0].toUpperCase()
     : "?";
   const displayName = user
-    ? [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email
+    ? user.fullName || user.email
     : "Administrateur";
   const roleLabel = user ? (ADMIN_ROLE_LABELS[user.role] ?? user.role) : "";
 

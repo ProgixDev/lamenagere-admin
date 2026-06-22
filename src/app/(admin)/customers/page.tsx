@@ -8,8 +8,7 @@ import { adminApi } from "@/lib/api";
 
 interface AdminCustomer {
   id: string;
-  firstName: string;
-  lastName: string;
+  fullName: string;
   email: string;
   phone: string;
   type: "particulier" | "professionnel";
@@ -83,7 +82,7 @@ export default function CustomersPage() {
     if (tab === "inactive" && c.orders !== 0) return false;
     if (
       search &&
-      !`${c.firstName} ${c.lastName} ${c.email} ${c.company ?? ""}`
+      !`${c.fullName} ${c.email} ${c.company ?? ""}`
         .toLowerCase()
         .includes(search.toLowerCase())
     )
@@ -149,7 +148,7 @@ export default function CustomersPage() {
                   <div className="hstack" style={{ gap: 12 }}>
                     <div className={`avatar sm${c.type === "professionnel" ? " bronze" : ""}`}>{c.avatarInitials}</div>
                     <div>
-                      <div style={{ fontWeight: 500, fontSize: 13.5 }}>{c.firstName} {c.lastName}</div>
+                      <div style={{ fontWeight: 500, fontSize: 13.5 }}>{c.fullName}</div>
                       <div style={{ fontSize: 11, color: "var(--outline)", marginTop: 2 }}>
                         {c.email}{c.company ? ` · ${c.company}` : ""}
                       </div>

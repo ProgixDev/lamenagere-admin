@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   ChevronRight,
   Download,
@@ -100,6 +101,19 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      await adminApi.orders.export();
+      toast.success("Export des commandes téléchargé");
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Export impossible");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     adminApi
@@ -160,9 +174,9 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="hstack">
-          <button className="btn btn-outline btn-sm">
+          <button className="btn btn-outline btn-sm" onClick={handleExport} disabled={exporting}>
             <Download size={14} strokeWidth={1.8} />
-            <span>Exporter</span>
+            <span>{exporting ? "Export…" : "Exporter"}</span>
           </button>
         </div>
       </div>

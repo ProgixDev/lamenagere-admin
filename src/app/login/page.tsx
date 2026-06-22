@@ -15,6 +15,20 @@ export default function LoginPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  async function handleForgotPassword() {
+    const target = email.trim();
+    if (!target) {
+      toast.error("Saisissez votre email d'abord");
+      return;
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(target);
+    if (error) {
+      toast.error("Envoi du lien impossible");
+      return;
+    }
+    toast.success("Lien de réinitialisation envoyé par email");
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -32,7 +46,7 @@ export default function LoginPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("role, first_name, last_name")
+        .select("role, full_name")
         .eq("id", data.user.id)
         .single();
       const role = profile?.role as string | undefined;
@@ -47,8 +61,7 @@ export default function LoginPage() {
         id: data.user.id,
         email: data.user.email ?? email.trim(),
         role: role as AdminRole,
-        firstName: profile?.first_name ?? "",
-        lastName: profile?.last_name ?? "",
+        fullName: profile?.full_name ?? "",
       });
       // Log the sign-in event — fire and forget, never block navigation
       adminApi.activity.logLogin().catch(() => {});
@@ -187,7 +200,14 @@ export default function LoginPage() {
                 )}
               </button>
             </div>
-            <div className="forgot">Mot de passe oublié ?</div>
+            <button
+              type="button"
+              className="forgot"
+              onClick={handleForgotPassword}
+              style={{ display: "block", width: "100%", border: "none", background: "none", padding: 0 }}
+            >
+              Mot de passe oublié ?
+            </button>
 
             <button
               type="submit"
@@ -202,14 +222,14 @@ export default function LoginPage() {
               <span>ou</span>
             </div>
 
-            <button
-              type="button"
+            <a
+              href="mailto:admin@lamenagereparis.fr?subject=Demande%20d%27acc%C3%A8s%20%C3%A0%20l%27espace%20administrateur"
               className="btn btn-outline"
               style={{ width: "100%" }}
             >
               <Mail size={14} strokeWidth={1.7} />
               <span>Demander un accès</span>
-            </button>
+            </a>
           </form>
 
           <div className="login-foot">Sécurisé par chiffrement TLS · v1.0.0</div>

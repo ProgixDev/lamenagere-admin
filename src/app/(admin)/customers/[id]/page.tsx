@@ -8,8 +8,7 @@ import { adminApi } from "@/lib/api";
 
 interface Customer {
   id: string;
-  firstName: string;
-  lastName: string;
+  fullName: string;
   email: string;
   phone: string;
   type: "particulier" | "professionnel";
@@ -50,7 +49,7 @@ export default function CustomerDetailPage() {
       <div className="page-header">
         <div>
           <div className="hstack" style={{ gap: 14, marginBottom: 6 }}>
-            <h1 className="page-title">{c.firstName} {c.lastName}</h1>
+            <h1 className="page-title">{c.fullName}</h1>
             {c.type === "professionnel" ? <span className="pill pill-bronze">PRO</span> : <span className="pill pill-outline">Particulier</span>}
           </div>
           <div className="page-subtitle">{c.email} · {c.phone || "—"} · Client depuis {new Date(c.createdAt).toLocaleDateString("fr-FR")}</div>
@@ -119,7 +118,7 @@ export default function CustomerDetailPage() {
             <div className="hstack" style={{ gap: 14, marginBottom: 16 }}>
               <div className={`avatar lg${c.type === "professionnel" ? " bronze" : ""}`}>{c.avatarInitials}</div>
               <div>
-                <div style={{ fontFamily: "var(--display)", fontSize: 18, fontWeight: 600 }}>{c.firstName} {c.lastName}</div>
+                <div style={{ fontFamily: "var(--display)", fontSize: 18, fontWeight: 600 }}>{c.fullName}</div>
                 {c.company && <div style={{ fontSize: 12, color: "var(--outline)" }}>{c.company}</div>}
               </div>
             </div>

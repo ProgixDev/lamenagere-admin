@@ -6,10 +6,18 @@ import { useParams, useRouter } from "next/navigation";
 import { ExternalLink, X } from "lucide-react";
 import { toast } from "sonner";
 import { adminApi, api } from "@/lib/api";
+import { OPENING_TYPES, type OpeningTypeKey } from "@/lib/types";
 
 type Mode = "edit" | "new";
-type UiType = "standard" | "configurable" | "quote";
+/** How a product is priced. "fixed" = single price; "sqm" = price per m² with
+ *  customer-entered dimensions. (Quote-only products no longer exist.) */
+type PriceKind = "fixed" | "sqm";
 type Status = "brouillon" | "publie" | "archive";
+
+interface OpeningTypeEntry {
+  type: string;
+  surcharge: string;
+}
 
 interface Category {
   id: string;
@@ -23,14 +31,12 @@ interface Form {
   description: string;
   shortDescription: string;
   categoryId: string;
-  productType: UiType;
+  priceKind: PriceKind;
   status: Status;
   price: string;
   purchaseCost: string;
-  widthCoef: string;
-  heightCoef: string;
-  refWidth: string;
-  refHeight: string;
+  pricePerSqm: string;
+  openingTypes: OpeningTypeEntry[];
   minWidth: string;
   minHeight: string;
   maxWidth: string;
@@ -47,9 +53,9 @@ interface Form {
 
 const EMPTY: Form = {
   name: "", slug: "", sku: "", description: "", shortDescription: "",
-  categoryId: "", productType: "standard", status: "brouillon",
-  price: "", purchaseCost: "", widthCoef: "", heightCoef: "",
-  refWidth: "", refHeight: "", minWidth: "", minHeight: "", maxWidth: "", maxHeight: "",
+  categoryId: "", priceKind: "fixed", status: "brouillon",
+  price: "", purchaseCost: "", pricePerSqm: "", openingTypes: [],
+  minWidth: "", minHeight: "", maxWidth: "", maxHeight: "",
   deliveryMetropole: "2-3 semaines", deliveryOutremer: "8-12 semaines",
   weightKg: "", volumeM3: "", freeShipping: false,
   seoTitle: "", seoDescription: "", isFeatured: false,
@@ -90,7 +96,6 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
       .get(id)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then((p: any) => {
-        const ui: UiType = p.product_type === "quote_only" ? "quote" : p.product_type;
         setForm({
           name: p.name ?? "",
           slug: p.slug ?? "",
@@ -98,14 +103,14 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
           description: p.description ?? "",
           shortDescription: p.short_description ?? "",
           categoryId: p.category_id ?? "",
-          productType: ui,
+          priceKind: p.price_mode === "per_sqm" ? "sqm" : "fixed",
           status: p.status ?? "brouillon",
           price: cents(p.base_price_cents),
           purchaseCost: cents(p.purchase_cost_cents),
-          widthCoef: cents(p.width_coef_cents),
-          heightCoef: cents(p.height_coef_cents),
-          refWidth: p.ref_width != null ? String(p.ref_width) : "",
-          refHeight: p.ref_height != null ? String(p.ref_height) : "",
+          pricePerSqm: cents(p.price_per_sqm_cents),
+          openingTypes: ((p.opening_types ?? []) as { type: string; surcharge_cents: number }[]).map(
+            (o) => ({ type: o.type, surcharge: cents(o.surcharge_cents) }),
+          ),
           minWidth: p.min_width != null ? String(p.min_width) : "",
           minHeight: p.min_height != null ? String(p.min_height) : "",
           maxWidth: p.max_width != null ? String(p.max_width) : "",
@@ -129,6 +134,22 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
 
   function patch(p: Partial<Form>) {
     setForm((f) => ({ ...f, ...p }));
+  }
+
+  function toggleOpeningType(type: string, checked: boolean) {
+    setForm((f) => ({
+      ...f,
+      openingTypes: checked
+        ? [...f.openingTypes, { type, surcharge: "" }]
+        : f.openingTypes.filter((o) => o.type !== type),
+    }));
+  }
+
+  function patchOpeningSurcharge(type: string, surcharge: string) {
+    setForm((f) => ({
+      ...f,
+      openingTypes: f.openingTypes.map((o) => (o.type === type ? { ...o, surcharge } : o)),
+    }));
   }
 
   async function onPickImages(e: React.ChangeEvent<HTMLInputElement>) {
@@ -167,21 +188,18 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
       description: form.description,
       shortDescription: form.shortDescription || undefined,
       categoryId: form.categoryId,
-      productType: form.productType === "quote" ? "quote_only" : form.productType,
-      priceMode:
-        form.productType === "standard" ? "fixed" : form.productType === "configurable" ? "calculated" : "quote",
+      productType: form.priceKind === "sqm" ? "configurable" : "standard",
+      priceMode: form.priceKind === "sqm" ? "per_sqm" : "fixed",
       status,
       price: num(form.price),
       purchaseCost: num(form.purchaseCost),
-      widthCoef: num(form.widthCoef),
-      heightCoef: num(form.heightCoef),
-      refWidth: num(form.refWidth),
-      refHeight: num(form.refHeight),
+      pricePerSqm: num(form.pricePerSqm),
+      openingTypes: form.openingTypes.map((o) => ({ type: o.type, surcharge: num(o.surcharge) })),
       minWidth: num(form.minWidth),
       minHeight: num(form.minHeight),
       maxWidth: num(form.maxWidth),
       maxHeight: num(form.maxHeight),
-      customizable: form.productType === "configurable",
+      customizable: form.priceKind === "sqm",
       deliveryMetropole: form.deliveryMetropole || undefined,
       deliveryOutremer: form.deliveryOutremer || undefined,
       weightKg: num(form.weightKg),
@@ -279,16 +297,6 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
                 </div>
               </div>
               <div className="field">
-                <label className="field-label">Type de produit</label>
-                <div className="seg" style={{ marginTop: 6 }}>
-                  {(["standard", "configurable", "quote"] as UiType[]).map((t) => (
-                    <button key={t} type="button" className={`seg-btn${form.productType === t ? " active" : ""}`} onClick={() => patch({ productType: t })}>
-                      {t === "standard" ? "Standard" : t === "configurable" ? "Configurable" : "Sur devis"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="field">
                 <label className="field-label">Description</label>
                 <textarea className="textarea" value={form.description} onChange={(e) => patch({ description: e.target.value })} />
               </div>
@@ -348,58 +356,85 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
           </div>
 
           <div className="card card-padded">
-            <div className="card-title" style={{ marginBottom: 18 }}>
-              Tarification · {form.productType === "standard" ? "Standard" : form.productType === "configurable" ? "Configurable" : "Sur devis"}
+            <div className="card-title" style={{ marginBottom: 18 }}>Tarification</div>
+
+            <div className="field">
+              <label className="field-label">Mode de tarification</label>
+              <div className="seg" style={{ marginTop: 6 }}>
+                {(["fixed", "sqm"] as PriceKind[]).map((k) => (
+                  <button key={k} type="button" className={`seg-btn${form.priceKind === k ? " active" : ""}`} onClick={() => patch({ priceKind: k })}>
+                    {k === "fixed" ? "Prix fixe" : "Au m²"}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--outline)", marginTop: 8 }}>
+                {form.priceKind === "fixed"
+                  ? "Prix unique, achat direct."
+                  : "Le client saisit ses dimensions ; le prix est calculé automatiquement (prix au m² × surface)."}
+              </div>
             </div>
 
-            {form.productType === "standard" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            {form.priceKind === "fixed" ? (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 20 }}>
                 <div className="field"><label className="field-label">Prix TTC (€)</label><input className="input" value={form.price} onChange={(e) => patch({ price: e.target.value })} /></div>
                 <div className="field"><label className="field-label">Coût d&apos;achat (€)</label><input className="input" value={form.purchaseCost} onChange={(e) => patch({ purchaseCost: e.target.value })} /></div>
               </div>
-            )}
-
-            {form.productType === "configurable" && (
-              <>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-                  <div className="field"><label className="field-label">Prix de base TTC (€)</label><input className="input" value={form.price} onChange={(e) => patch({ price: e.target.value })} /></div>
+            ) : (
+              <div style={{ marginTop: 20, padding: 16, background: "var(--surface-container-low)", borderRadius: 10 }}>
+                <div className="eyebrow" style={{ marginBottom: 10 }}>Calcul au m²</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                  <div className="field"><label className="field-label">Prix au m² (€)</label><input className="input" value={form.pricePerSqm} onChange={(e) => patch({ pricePerSqm: e.target.value })} /></div>
                   <div className="field"><label className="field-label">Coût d&apos;achat (€)</label><input className="input" value={form.purchaseCost} onChange={(e) => patch({ purchaseCost: e.target.value })} /></div>
                 </div>
-                <div style={{ marginTop: 20, padding: 16, background: "var(--surface-container-low)", borderRadius: 10 }}>
-                  <div className="eyebrow" style={{ marginBottom: 10 }}>Calcul par dimension</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <div className="field"><label className="field-label">Coef. largeur (€/cm)</label><input className="input" value={form.widthCoef} onChange={(e) => patch({ widthCoef: e.target.value })} /></div>
-                    <div className="field"><label className="field-label">Coef. hauteur (€/cm)</label><input className="input" value={form.heightCoef} onChange={(e) => patch({ heightCoef: e.target.value })} /></div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <div className="field"><label className="field-label">Min L×H (cm)</label>
+                    <div className="hstack" style={{ gap: 6 }}>
+                      <input className="input" placeholder="L" value={form.minWidth} onChange={(e) => patch({ minWidth: e.target.value })} />
+                      <input className="input" placeholder="H" value={form.minHeight} onChange={(e) => patch({ minHeight: e.target.value })} />
+                    </div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginTop: 14 }}>
-                    <div className="field"><label className="field-label">Réf. L×H (cm)</label>
-                      <div className="hstack" style={{ gap: 6 }}>
-                        <input className="input" placeholder="L" value={form.refWidth} onChange={(e) => patch({ refWidth: e.target.value })} />
-                        <input className="input" placeholder="H" value={form.refHeight} onChange={(e) => patch({ refHeight: e.target.value })} />
-                      </div>
-                    </div>
-                    <div className="field"><label className="field-label">Min L×H</label>
-                      <div className="hstack" style={{ gap: 6 }}>
-                        <input className="input" placeholder="L" value={form.minWidth} onChange={(e) => patch({ minWidth: e.target.value })} />
-                        <input className="input" placeholder="H" value={form.minHeight} onChange={(e) => patch({ minHeight: e.target.value })} />
-                      </div>
-                    </div>
-                    <div className="field"><label className="field-label">Max L×H</label>
-                      <div className="hstack" style={{ gap: 6 }}>
-                        <input className="input" placeholder="L" value={form.maxWidth} onChange={(e) => patch({ maxWidth: e.target.value })} />
-                        <input className="input" placeholder="H" value={form.maxHeight} onChange={(e) => patch({ maxHeight: e.target.value })} />
-                      </div>
+                  <div className="field"><label className="field-label">Max L×H (cm)</label>
+                    <div className="hstack" style={{ gap: 6 }}>
+                      <input className="input" placeholder="L" value={form.maxWidth} onChange={(e) => patch({ maxWidth: e.target.value })} />
+                      <input className="input" placeholder="H" value={form.maxHeight} onChange={(e) => patch({ maxHeight: e.target.value })} />
                     </div>
                   </div>
                 </div>
-              </>
-            )}
-
-            {form.productType === "quote" && (
-              <div style={{ padding: 16, background: "var(--surface-container-low)", borderRadius: 10, fontSize: 13, color: "var(--on-surface-variant)" }}>
-                Ce produit est uniquement disponible sur devis. Le client demande un devis depuis la fiche produit.
               </div>
             )}
+          </div>
+
+          <div className="card card-padded">
+            <div className="card-title" style={{ marginBottom: 8 }}>Types d&apos;ouverture</div>
+            <div style={{ fontSize: 12, color: "var(--outline)", marginBottom: 16 }}>Sélectionnez les ouvertures disponibles et leur supplément éventuel</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {(Object.keys(OPENING_TYPES) as OpeningTypeKey[]).map((key) => {
+                const selected = form.openingTypes.find((o) => o.type === key);
+                return (
+                  <div key={key} style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={!!selected}
+                        onChange={(e) => toggleOpeningType(key, e.target.checked)}
+                      />
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>{OPENING_TYPES[key]}</span>
+                    </label>
+                    {selected && (
+                      <div className="hstack" style={{ gap: 8, alignItems: "center" }}>
+                        <span style={{ fontSize: 12, color: "var(--outline)" }}>Supplément (€)</span>
+                        <input
+                          className="input"
+                          style={{ width: 110 }}
+                          value={selected.surcharge}
+                          onChange={(e) => patchOpeningSurcharge(key, e.target.value)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="card card-padded">

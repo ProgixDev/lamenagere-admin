@@ -28,7 +28,7 @@ interface QuoteRow {
   created_at: string;
   attachments?: { id: string; url: string }[];
   items?: { description: string; quantity: number; unit_price_cents: number; sort_order: number }[];
-  profile?: { first_name: string; last_name: string; account_type: string; company: string | null; siret: string | null };
+  profile?: { full_name: string; account_type: string; company: string | null; siret: string | null };
 }
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -120,7 +120,7 @@ export default function QuoteDetailPage() {
     }
   }
 
-  const clientName = [q.profile?.first_name, q.profile?.last_name].filter(Boolean).join(" ");
+  const clientName = q.profile?.full_name ?? "";
 
   return (
     <div className="page">

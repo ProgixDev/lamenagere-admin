@@ -129,6 +129,26 @@ export const adminApi = {
   },
   orders: {
     list: (qs = "") => api.get(`/admin/orders${qs}`),
+    /** Downloads the orders export as CSV and triggers a browser download. */
+    async export(): Promise<void> {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/admin/orders/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw { message: data?.message ?? "Export échoué", status: res.status } as ApiError;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "orders.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    },
     detail: (id: string) => api.get(`/admin/orders/${id}`),
     update: (id: string, body: unknown) => api.put(`/admin/orders/${id}`, body),
     setStatus: (id: string, body: unknown) => api.put(`/admin/orders/${id}/status`, body),

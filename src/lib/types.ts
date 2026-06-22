@@ -18,8 +18,7 @@ export const ADMIN_ROLE_LABELS: Record<AdminRole, string> = {
 export interface AdminUser {
   id: string;
   email: string;
-  firstName: string;
-  lastName: string;
+  fullName: string;
   role: AdminRole;
   lastActivityAt: string | null;
   createdAt: string;
@@ -52,11 +51,29 @@ export interface CurrentAdminUser {
   id: string;
   email: string;
   role: AdminRole;
-  firstName: string;
-  lastName: string;
+  fullName: string;
 }
 export type ProductType = "standard" | "configurable" | "quote_only";
-export type PriceMode = "fixed" | "calculated" | "quote";
+export type PriceMode = "fixed" | "calculated" | "per_sqm" | "quote";
+
+export type OpeningTypeKey =
+  | "battante"
+  | "pivotante"
+  | "coulissante"
+  | "oscillo_battante"
+  | "soufflet"
+  | "fixe"
+  | "double_battant";
+
+export const OPENING_TYPES: Record<OpeningTypeKey, string> = {
+  battante: "Battante",
+  pivotante: "Pivotante",
+  coulissante: "Coulissante",
+  oscillo_battante: "Oscillo-battante",
+  soufflet: "Soufflet",
+  fixe: "Fixe",
+  double_battant: "Double battant",
+};
 export type ShippingZone =
   | "metropole"
   | "reunion"
@@ -120,8 +137,7 @@ export interface Quote {
 
 export interface Customer {
   id: string;
-  firstName: string;
-  lastName: string;
+  fullName: string;
   email: string;
   phone: string;
   type: AccountType;

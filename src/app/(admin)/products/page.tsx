@@ -21,9 +21,9 @@ interface AdminProduct {
 }
 
 const TYPE_LABEL: Record<AdminProduct["productType"], string> = {
-  standard: "STANDARD",
-  configurable: "CONFIGURABLE",
-  quote_only: "SUR DEVIS",
+  standard: "PRIX FIXE",
+  configurable: "AU M²",
+  quote_only: "AU M²",
 };
 function typePill(t: AdminProduct["productType"]) {
   if (t === "standard") return "pill-navy-soft";

@@ -14,7 +14,7 @@ export function Topbar() {
   const { user } = useCurrentUser();
 
   const initials = user
-    ? `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || user.email[0].toUpperCase()
+    ? user.fullName.trim().split(/\s+/).map((w) => w[0] ?? "").slice(0, 2).join("").toUpperCase() || user.email[0].toUpperCase()
     : "?";
 
   const roleLabel = user ? (ADMIN_ROLE_LABELS[user.role] ?? user.role) : "";
@@ -46,7 +46,7 @@ export function Topbar() {
         {user && (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1 }}>
-              {user.firstName || user.email}
+              {user.fullName || user.email}
               {roleLabel && (
                 <span
                   style={{

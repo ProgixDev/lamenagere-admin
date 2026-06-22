@@ -42,6 +42,7 @@ export default function MessagesPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [query, setQuery] = useState("");
   const threadRef = useRef<HTMLDivElement>(null);
 
   function loadConvs() {
@@ -82,6 +83,14 @@ export default function MessagesPage() {
   const active = convs.find((c) => c.id === activeId);
   const totalUnread = convs.reduce((n, c) => n + c.unread, 0);
 
+  const q = query.trim().toLowerCase();
+  const filteredConvs = q
+    ? convs.filter((c) =>
+        [c.vendorName, c.subject, c.lastMessage]
+          .some((v) => v?.toLowerCase().includes(q)),
+      )
+    : convs;
+
   return (
     <div className="msg-app">
       <div className="list-pane">
@@ -94,11 +103,11 @@ export default function MessagesPage() {
             <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--outline)", display: "flex" }}>
               <Search size={16} strokeWidth={1.8} />
             </span>
-            <input className="input-boxed" style={{ paddingLeft: 36, width: "100%", height: 36 }} placeholder="Rechercher..." />
+            <input className="input-boxed" style={{ paddingLeft: 36, width: "100%", height: 36 }} placeholder="Rechercher..." value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
         </div>
         <div style={{ flex: 1, overflowY: "auto" }}>
-          {convs.map((c) => (
+          {filteredConvs.map((c) => (
             <div key={c.id} className={`conv-row${c.id === activeId ? " active" : ""}`} onClick={() => openConv(c.id)} style={{ cursor: "pointer" }}>
               <div className={`avatar md${c.b2b ? " bronze" : ""}`}>{initials(c.vendorName)}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -117,8 +126,10 @@ export default function MessagesPage() {
               </div>
             </div>
           ))}
-          {convs.length === 0 && (
-            <div style={{ padding: 24, color: "var(--outline)", fontSize: 13 }}>Aucune conversation.</div>
+          {filteredConvs.length === 0 && (
+            <div style={{ padding: 24, color: "var(--outline)", fontSize: 13 }}>
+              {convs.length === 0 ? "Aucune conversation." : "Aucun résultat."}
+            </div>
           )}
         </div>
       </div>
