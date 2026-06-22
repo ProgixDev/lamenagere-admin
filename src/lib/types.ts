@@ -164,6 +164,12 @@ export interface Conversation {
     ref: string;
     label: string;
   };
+  product?: {
+    id: string;
+    name: string;
+    image?: string;
+    priceLabel: string;
+  };
 }
 
 export interface Message {

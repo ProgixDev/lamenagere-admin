@@ -16,6 +16,7 @@ interface Conversation {
   unread: number;
   b2b?: boolean;
   pinnedEntity?: { kind: "order" | "quote"; ref: string; label: string };
+  product?: { id: string; name: string; image?: string; priceLabel: string };
 }
 interface Message {
   id: string;
@@ -116,6 +117,22 @@ export default function MessageThreadPage() {
               <span className="mono" style={{ fontWeight: 600 }}>#{conv.pinnedEntity.ref}</span> · {conv.pinnedEntity.label}
               <a href={`/${conv.pinnedEntity.kind === "order" ? "orders" : "quotes"}/${conv.pinnedEntity.ref}`} className="card-link" style={{ marginLeft: "auto" }}>Ouvrir →</a>
             </div>
+          </div>
+        )}
+
+        {conv?.product && (
+          <div style={{ padding: "14px 24px", background: "var(--surface)", borderBottom: "1px solid var(--outline-soft)" }}>
+            <Link href={`/products/${conv.product.id}`} className="card-link" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none" }}>
+              {conv.product.image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={conv.product.image} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
+              )}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: "var(--on-surface)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{conv.product.name}</div>
+                <div style={{ fontSize: 12, color: "var(--secondary)" }}>{conv.product.priceLabel}</div>
+              </div>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--primary)", flexShrink: 0 }}>Voir le produit →</span>
+            </Link>
           </div>
         )}
 
