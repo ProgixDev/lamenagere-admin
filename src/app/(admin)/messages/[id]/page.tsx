@@ -4,8 +4,26 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Send } from "lucide-react";
-import { adminApi } from "@/lib/api";
+import { ArrowLeft, Send, Paperclip, X } from "lucide-react";
+import { adminApi, api } from "@/lib/api";
+
+function MsgAttachments({ items }: { items?: { type: string; url: string }[] }) {
+  if (!items?.length) return null;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 6 }}>
+      {items.map((a, i) =>
+        a.type === "video" ? (
+          <video key={i} src={a.url} controls style={{ width: 220, maxWidth: "100%", borderRadius: 10, display: "block" }} />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <a key={i} href={a.url} target="_blank" rel="noreferrer">
+            <img src={a.url} alt="" style={{ width: 220, maxWidth: "100%", borderRadius: 10, display: "block", objectFit: "cover" }} />
+          </a>
+        ),
+      )}
+    </div>
+  );
+}
 
 interface Conversation {
   id: string;
@@ -23,7 +41,7 @@ interface Message {
   conversationId: string;
   sender: "admin" | "client";
   content: string;
-  attachments?: string[];
+  attachments?: { type: string; url: string }[];
   createdAt: string;
 }
 
@@ -47,7 +65,10 @@ export default function MessageThreadPage() {
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [pending, setPending] = useState<{ url: string; type: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,13 +99,32 @@ export default function MessageThreadPage() {
     if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
   }, [messages]);
 
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const { url } = await api.upload(file, "messages");
+      setPending((p) => [...p, { url, type: file.type.startsWith("video") ? "video" : "image" }]);
+    } catch (err) {
+      toast.error((err as { message?: string })?.message ?? "Téléversement échoué");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
   async function send() {
-    if (!draft.trim()) return;
+    if (!draft.trim() && pending.length === 0) return;
     setSending(true);
     try {
-      const msg = (await adminApi.conversations.reply(id, { content: draft.trim() })) as Message;
+      const msg = (await adminApi.conversations.reply(id, {
+        content: draft.trim(),
+        attachments: pending.map((p) => p.url),
+      })) as Message;
       setMessages((m) => [...m, msg]);
       setDraft("");
+      setPending([]);
     } catch (e) {
       toast.error((e as { message?: string })?.message ?? "Envoi impossible");
     } finally {
@@ -142,14 +182,16 @@ export default function MessageThreadPage() {
               <div key={m.id} style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
                 <div className={`avatar sm${conv?.b2b ? " bronze" : ""}`}>{initials(name)}</div>
                 <div className="bubble bubble-in">
-                  {m.content}
+                  <MsgAttachments items={m.attachments} />
+                  {m.content && <div>{m.content}</div>}
                   <div style={{ fontSize: 10, color: "var(--outline)", marginTop: 4 }}>{timeShort(m.createdAt)}</div>
                 </div>
               </div>
             ) : (
               <div key={m.id} style={{ display: "flex", justifyContent: "flex-end" }}>
                 <div className="bubble bubble-out">
-                  {m.content}
+                  <MsgAttachments items={m.attachments} />
+                  {m.content && <div>{m.content}</div>}
                   <div style={{ fontSize: 10, opacity: 0.75, marginTop: 4 }}>{timeShort(m.createdAt)}</div>
                 </div>
               </div>
@@ -163,7 +205,35 @@ export default function MessageThreadPage() {
         </div>
 
         <div style={{ background: "var(--surface)", borderTop: "1px solid var(--outline-variant)", padding: "16px 24px", flexShrink: 0 }}>
+          {(pending.length > 0 || uploading) && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+              {pending.map((p, i) => (
+                <div key={`${p.url}-${i}`} style={{ position: "relative", width: 56, height: 56 }}>
+                  {p.type === "video" ? (
+                    <div style={{ width: 56, height: 56, borderRadius: 8, background: "var(--surface-container)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>🎥</div>
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.url} alt="" style={{ width: 56, height: 56, borderRadius: 8, objectFit: "cover" }} />
+                  )}
+                  <button
+                    onClick={() => setPending((prev) => prev.filter((_, idx) => idx !== i))}
+                    style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: 9, border: "none", background: "var(--on-surface)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                    aria-label="Retirer"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+              {uploading && (
+                <div style={{ width: 56, height: 56, borderRadius: 8, background: "var(--surface-container)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "var(--outline)" }}>…</div>
+              )}
+            </div>
+          )}
           <div className="hstack" style={{ gap: 10, alignItems: "flex-end" }}>
+            <input ref={fileRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={onPickFile} />
+            <button className="btn btn-ghost btn-sm" onClick={() => fileRef.current?.click()} disabled={uploading} aria-label="Joindre un fichier">
+              <Paperclip size={16} strokeWidth={1.7} />
+            </button>
             <textarea
               className="input-boxed"
               style={{ flex: 1, minHeight: 42, maxHeight: 120, resize: "none" }}
@@ -172,7 +242,7 @@ export default function MessageThreadPage() {
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
             />
-            <button className="btn btn-primary btn-sm" onClick={send} disabled={sending || !draft.trim()}>
+            <button className="btn btn-primary btn-sm" onClick={send} disabled={sending || uploading || (!draft.trim() && pending.length === 0)}>
               <Send size={14} strokeWidth={1.7} />
               <span>{sending ? "…" : "Envoyer"}</span>
             </button>

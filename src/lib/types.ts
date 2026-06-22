@@ -177,6 +177,6 @@ export interface Message {
   conversationId: string;
   sender: "admin" | "client";
   content: string;
-  attachments?: string[];
+  attachments?: { type: string; url: string }[];
   createdAt: string;
 }
