@@ -190,7 +190,7 @@ export default function MessageThreadPage() {
           </div>
         )}
 
-        <div ref={threadRef} style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div ref={threadRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 10 }}>
           {messages.map((m) =>
             m.sender === "client" ? (
               <div key={m.id} style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>

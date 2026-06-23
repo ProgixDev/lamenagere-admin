@@ -161,7 +161,7 @@ export default function MessagesPage() {
             <input className="input-boxed" style={{ paddingLeft: 36, width: "100%", height: 36 }} placeholder="Rechercher..." value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
         </div>
-        <div style={{ flex: 1, overflowY: "auto" }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
           {filteredConvs.map((c) => (
             <div key={c.id} className={`conv-row${c.id === activeId ? " active" : ""}`} onClick={() => openConv(c.id)} style={{ cursor: "pointer" }}>
               <div className={`avatar md${c.b2b ? " bronze" : ""}`}>{initials(c.vendorName)}</div>
@@ -228,7 +228,7 @@ export default function MessagesPage() {
               </div>
             )}
 
-            <div ref={threadRef} style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div ref={threadRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 10 }}>
               {messages.map((m) =>
                 m.sender === "client" ? (
                   <div key={m.id} style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
