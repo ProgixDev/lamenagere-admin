@@ -44,6 +44,13 @@ interface OrderDto {
   territory: string;
   estimatedDelivery: string;
   createdAt: string;
+  paymentStatus?: "unpaid" | "paid" | "failed" | "refunded";
+  refundStatus?: "none" | "requested" | "refunded" | "rejected";
+  refundReason?: string;
+  refundDecisionNote?: string;
+  refundAmount?: number;
+  refundRequestedAt?: string;
+  refundDecidedAt?: string;
   timeline: { status: Status; label: string; timestamp?: string; completed: boolean }[];
 }
 interface Detail {
@@ -117,11 +124,21 @@ export default function OrderDetailPage() {
       toast.error((e as { message?: string })?.message ?? "Échec");
     }
   }
-  async function refund() {
-    if (!confirm("Demander le remboursement ?")) return;
+  async function acceptRefund() {
+    if (!confirm("Accepter et rembourser via Stripe ? Cette action est irréversible.")) return;
     try {
-      await adminApi.orders.refund(o.id);
-      toast.success("Remboursement demandé (Stripe à venir)");
+      await adminApi.orders.acceptRefund(o.id);
+      toast.success("Remboursement Stripe effectué");
+      load();
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Échec du remboursement");
+    }
+  }
+  async function rejectRefund() {
+    const reason = prompt("Motif du refus (facultatif) ?") ?? undefined;
+    try {
+      await adminApi.orders.rejectRefund(o.id, reason);
+      toast.success("Demande de remboursement refusée");
       load();
     } catch (e) {
       toast.error((e as { message?: string })?.message ?? "Échec");
@@ -231,10 +248,49 @@ export default function OrderDetailPage() {
 
           <div className="card card-padded">
             <div className="card-title" style={{ marginBottom: 18 }}>Paiement</div>
-            <div className="hstack" style={{ justifyContent: "space-between" }}>
-              <span className="pill pill-success">Total {formatEUR(o.total)}</span>
-              <button className="btn btn-danger btn-sm" onClick={refund}>Rembourser</button>
+            <div className="hstack" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+              <div className="hstack" style={{ gap: 8, flexWrap: "wrap" }}>
+                <span className={`pill ${o.paymentStatus === "refunded" ? "pill-warning" : o.paymentStatus === "paid" ? "pill-success" : "pill-navy"}`}>
+                  {o.paymentStatus === "refunded" ? "Remboursée" : o.paymentStatus === "paid" ? "Payée" : o.paymentStatus === "failed" ? "Échec" : "Non payée"} · {formatEUR(o.total)}
+                </span>
+                {o.refundStatus && o.refundStatus !== "none" && (
+                  <span className={`pill ${o.refundStatus === "refunded" ? "pill-success" : o.refundStatus === "rejected" ? "pill-warning" : "pill-prep"}`}>
+                    Remb. {o.refundStatus === "requested" ? "demandé" : o.refundStatus === "refunded" ? "effectué" : "refusé"}
+                  </span>
+                )}
+              </div>
+
+              {/* Direct admin refund only when no customer request is pending and not already refunded */}
+              {o.paymentStatus === "paid" &&
+                (!o.refundStatus || o.refundStatus === "none") && (
+                  <button className="btn btn-danger btn-sm" onClick={acceptRefund}>Rembourser</button>
+                )}
             </div>
+
+            {o.refundStatus === "requested" && (
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--outline-soft)" }}>
+                <div style={{ fontSize: 12, color: "var(--outline)", marginBottom: 4 }}>
+                  Demande de remboursement du client
+                  {o.refundRequestedAt ? ` · ${new Date(o.refundRequestedAt).toLocaleString("fr-FR")}` : ""}
+                </div>
+                <div style={{ fontSize: 13, marginBottom: 14 }}>{o.refundReason || "— Aucun motif précisé —"}</div>
+                <div className="hstack" style={{ gap: 10 }}>
+                  <button className="btn btn-primary btn-sm" onClick={acceptRefund}>Accepter & rembourser</button>
+                  <button className="btn btn-outline btn-sm" onClick={rejectRefund}>Refuser</button>
+                </div>
+              </div>
+            )}
+
+            {o.refundStatus === "refunded" && (
+              <div style={{ marginTop: 14, fontSize: 12.5, color: "var(--outline)" }}>
+                {formatEUR(o.refundAmount ?? o.total)} remboursés{o.refundDecidedAt ? ` le ${new Date(o.refundDecidedAt).toLocaleDateString("fr-FR")}` : ""}.
+              </div>
+            )}
+            {o.refundStatus === "rejected" && (
+              <div style={{ marginTop: 14, fontSize: 12.5, color: "var(--outline)" }}>
+                Demande refusée{o.refundDecisionNote ? ` : ${o.refundDecisionNote}` : ""}.
+              </div>
+            )}
           </div>
 
           <div className="card card-padded">

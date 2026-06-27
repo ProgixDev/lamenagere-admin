@@ -154,6 +154,9 @@ export const adminApi = {
     setStatus: (id: string, body: unknown) => api.put(`/admin/orders/${id}/status`, body),
     ship: (id: string, body: unknown) => api.post(`/admin/orders/${id}/ship`, body),
     refund: (id: string) => api.post(`/admin/orders/${id}/refund`),
+    acceptRefund: (id: string) => api.post(`/admin/orders/${id}/refund/accept`),
+    rejectRefund: (id: string, note?: string) =>
+      api.post(`/admin/orders/${id}/refund/reject`, { note }),
     note: (id: string, body: unknown) => api.post(`/admin/orders/${id}/note`, body),
   },
   quotes: {
