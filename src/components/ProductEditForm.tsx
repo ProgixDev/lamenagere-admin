@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { adminApi, api } from "@/lib/api";
 import { OPENING_TYPES, type OpeningTypeKey } from "@/lib/types";
 import MediaLibrary from "./MediaLibrary";
+import CategoryBlocksEditor, { type ConfigBlock } from "./CategoryBlocksEditor";
 
 type Mode = "edit" | "new";
 /** How a product is priced. "fixed" = single price; "sqm" = price per m² with
@@ -23,6 +24,7 @@ interface OpeningTypeEntry {
 interface Category {
   id: string;
   name: string;
+  configBlocks?: ConfigBlock[];
 }
 
 interface Form {
@@ -82,6 +84,8 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [libOpen, setLibOpen] = useState(false);
+  const [overrideBlocks, setOverrideBlocks] = useState(false);
+  const [blocks, setBlocks] = useState<ConfigBlock[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLInputElement>(null);
 
@@ -129,6 +133,9 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
         const media = (p.media ?? []) as { url: string; type: string }[];
         setImages(media.filter((m) => m.type === "image").map((m) => m.url));
         setVideos(media.filter((m) => m.type === "video").map((m) => m.url));
+        const pb = (p.config_blocks ?? []) as ConfigBlock[];
+        setOverrideBlocks(pb.length > 0);
+        setBlocks(pb);
       })
       .catch((e: { message?: string }) => toast.error(e?.message ?? "Produit introuvable"))
       .finally(() => setLoading(false));
@@ -212,6 +219,8 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
       isFeatured: form.isFeatured,
       imageUrls: images,
       videoUrls: videos,
+      // Empty → server stores null → product inherits its category template.
+      configBlocks: overrideBlocks ? blocks : [],
     };
   }
 
@@ -447,6 +456,35 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
                 );
               })}
             </div>
+          </div>
+
+          <div className="card card-padded">
+            <div className="card-title" style={{ marginBottom: 8 }}>Configuration (blocs)</div>
+            <div style={{ fontSize: 12, color: "var(--outline)", marginBottom: 14 }}>
+              Par défaut, ce produit hérite des blocs de sa catégorie. Activez la personnalisation pour lui donner ses propres blocs (accessoires, couleurs…).
+            </div>
+            <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, marginBottom: overrideBlocks ? 16 : 0 }}>
+              <span>Personnaliser pour ce produit</span>
+              <span className="switch">
+                <input
+                  type="checkbox"
+                  checked={overrideBlocks}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setOverrideBlocks(on);
+                    // Seed from the chosen category's template on first enable.
+                    if (on && blocks.length === 0) {
+                      const cat = categories.find((c) => c.id === form.categoryId);
+                      setBlocks(cat?.configBlocks ? structuredClone(cat.configBlocks) : []);
+                    }
+                  }}
+                />
+                <span className="slider"></span>
+              </span>
+            </label>
+            {overrideBlocks && (
+              <CategoryBlocksEditor blocks={blocks} onChange={setBlocks} />
+            )}
           </div>
 
           <div className="card card-padded">
