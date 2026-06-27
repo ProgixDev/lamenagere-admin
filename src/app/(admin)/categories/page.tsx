@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Plus, Folder, Trash2, Pencil, X } from "lucide-react";
 import { adminApi, api } from "@/lib/api";
 import CategoryBlocksEditor, { type ConfigBlock } from "@/components/CategoryBlocksEditor";
+import MediaLibrary from "@/components/MediaLibrary";
 
 interface AdminCategory {
   id: string;
@@ -75,6 +76,7 @@ export default function CategoriesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Form>(blankForm());
   const [saving, setSaving] = useState(false);
+  const [coverLibOpen, setCoverLibOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -268,13 +270,22 @@ export default function CategoriesPage() {
                 <div>
                   <label className="field-label" style={{ display: "block", marginBottom: 8 }}>Image de couverture</label>
                   <div style={{ height: 120, borderRadius: 10, background: form.imageUrl ? `url(${form.imageUrl}) center/cover` : "var(--surface-container-low)", position: "relative" }}>
-                    <div style={{ position: "absolute", bottom: 8, right: 8 }}>
+                    <div style={{ position: "absolute", bottom: 8, right: 8, display: "flex", gap: 6 }}>
+                      <button className="btn btn-outline btn-sm" style={{ background: "rgba(255,255,255,0.95)" }} onClick={() => setCoverLibOpen(true)}>
+                        Bibliothèque
+                      </button>
                       <button className="btn btn-outline btn-sm" style={{ background: "rgba(255,255,255,0.95)" }} onClick={() => fileRef.current?.click()}>
-                        Changer
+                        Téléverser
                       </button>
                     </div>
                   </div>
                   <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickImage} />
+                  <MediaLibrary
+                    open={coverLibOpen}
+                    folder="categories"
+                    onClose={() => setCoverLibOpen(false)}
+                    onPick={(url) => patch({ imageUrl: url })}
+                  />
                 </div>
 
                 <div>

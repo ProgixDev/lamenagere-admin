@@ -25,12 +25,41 @@ const PILL: Record<Status, string> = {
   livree: "pill-success",
 };
 
+interface ConfigEntry {
+  blockId: string;
+  type: string;
+  label: string;
+  measurements?: { label: string; value: number; unit?: string }[];
+  shape?: { label: string };
+  colors?: { label: string }[];
+  accessories?: { title: string; priceCents?: number }[];
+  opening?: { label: string };
+  photos?: { url: string; type: string }[];
+}
 interface OrderItem {
   id: string;
   product: { name: string; images: string[] };
   quantity: number;
   price: number;
   customDimensions?: { width: number; height: number };
+  configuration?: ConfigEntry[];
+}
+
+function summarizeConfig(config?: ConfigEntry[]): string {
+  if (!config?.length) return "";
+  const parts: string[] = [];
+  for (const e of config) {
+    if (e.measurements?.length) parts.push(e.measurements.map((m) => `${m.label} ${m.value}${m.unit ?? ""}`).join(", "));
+    if (e.shape) parts.push(e.shape.label);
+    if (e.colors?.length) parts.push(e.colors.map((c) => c.label).join("/"));
+    if (e.opening) parts.push(e.opening.label);
+    if (e.accessories?.length) parts.push(e.accessories.map((a) => a.title).join(", "));
+  }
+  return parts.join(" · ");
+}
+function configPhotos(config?: ConfigEntry[]): string[] {
+  if (!config?.length) return [];
+  return config.flatMap((e) => (e.photos ?? []).filter((p) => p.type !== "video").map((p) => p.url));
 }
 interface OrderDto {
   id: string;
@@ -208,20 +237,34 @@ export default function OrderDetailPage() {
                   <tr><th>Article</th><th>Dimensions</th><th style={{ textAlign: "center" }}>Qté</th><th style={{ textAlign: "right" }}>P.U.</th><th style={{ textAlign: "right" }}>Total</th></tr>
                 </thead>
                 <tbody>
-                  {o.items.map((it) => (
-                    <tr key={it.id}>
-                      <td>
-                        <div className="hstack" style={{ gap: 14 }}>
-                          {it.product.images?.[0] && <div className="thumb" style={{ backgroundImage: `url(${it.product.images[0]})` }}></div>}
-                          <div style={{ fontWeight: 500 }}>{it.product.name}</div>
-                        </div>
-                      </td>
-                      <td><span style={{ fontSize: 12.5 }}>{it.customDimensions ? `${it.customDimensions.width}×${it.customDimensions.height} cm` : "—"}</span></td>
-                      <td style={{ textAlign: "center" }}>{it.quantity}</td>
-                      <td style={{ textAlign: "right" }} className="num">{formatEUR(it.price)}</td>
-                      <td style={{ textAlign: "right" }} className="num">{formatEUR(it.price * it.quantity)}</td>
-                    </tr>
-                  ))}
+                  {o.items.map((it) => {
+                    const summary = summarizeConfig(it.configuration);
+                    const photos = configPhotos(it.configuration);
+                    return (
+                      <tr key={it.id}>
+                        <td>
+                          <div className="hstack" style={{ gap: 14 }}>
+                            {it.product.images?.[0] && <div className="thumb" style={{ backgroundImage: `url(${it.product.images[0]})` }}></div>}
+                            <div>
+                              <div style={{ fontWeight: 500 }}>{it.product.name}</div>
+                              {summary && <div style={{ fontSize: 11.5, color: "var(--outline)", marginTop: 2 }}>{summary}</div>}
+                              {photos.length > 0 && (
+                                <div className="hstack" style={{ gap: 6, marginTop: 6 }}>
+                                  {photos.map((url, i) => (
+                                    <a key={i} href={url} target="_blank" rel="noreferrer" style={{ width: 40, height: 40, borderRadius: 6, background: `url(${url}) center/cover`, display: "block", border: "1px solid var(--outline-soft)" }} />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td><span style={{ fontSize: 12.5 }}>{it.customDimensions ? `${it.customDimensions.width}×${it.customDimensions.height} cm` : "—"}</span></td>
+                        <td style={{ textAlign: "center" }}>{it.quantity}</td>
+                        <td style={{ textAlign: "right" }} className="num">{formatEUR(it.price)}</td>
+                        <td style={{ textAlign: "right" }} className="num">{formatEUR(it.price * it.quantity)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

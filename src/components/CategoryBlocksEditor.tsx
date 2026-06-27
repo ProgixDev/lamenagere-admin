@@ -1,9 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Plus, Trash2, GripVertical, ArrowUp, ArrowDown } from "lucide-react";
-import { toast } from "sonner";
-import { api } from "@/lib/api";
+import MediaLibrary from "./MediaLibrary";
 
 // ── Shared config-block model (mirrors server ConfigBlock) ──────────────────
 export type ConfigBlockType =
@@ -296,29 +295,14 @@ function PhotosBody({ block, update }: { block: ConfigBlock; update: (p: Partial
   );
 }
 
-// ── Reusable image picker (uploads to the shared bucket) ────────────────────
+// ── Reusable image picker (browse/upload via the shared media library) ──────
 function ImagePick({ value, onChange, wide }: { value?: string; onChange: (url: string) => void; wide?: boolean }) {
-  const ref = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setBusy(true);
-    try {
-      const { url } = await api.upload(file, "products");
-      onChange(url);
-    } catch (err) {
-      toast.error((err as { message?: string })?.message ?? "Téléversement échoué");
-    } finally {
-      setBusy(false);
-      if (ref.current) ref.current.value = "";
-    }
-  }
+  const [open, setOpen] = useState(false);
   return (
     <>
       <button
         type="button"
-        onClick={() => ref.current?.click()}
+        onClick={() => setOpen(true)}
         title="Choisir une image"
         style={{
           width: wide ? "100%" : 38,
@@ -328,12 +312,11 @@ function ImagePick({ value, onChange, wide }: { value?: string; onChange: (url: 
           background: value ? `url(${value}) center/cover` : "var(--surface-container)",
           cursor: "pointer",
           flexShrink: 0,
-          opacity: busy ? 0.5 : 1,
         }}
       >
-        {!value && !busy && <Plus size={14} style={{ color: "var(--outline)" }} />}
+        {!value && <Plus size={14} style={{ color: "var(--outline)" }} />}
       </button>
-      <input ref={ref} type="file" accept="image/*" hidden onChange={pick} />
+      <MediaLibrary open={open} folder="products" onClose={() => setOpen(false)} onPick={onChange} />
     </>
   );
 }

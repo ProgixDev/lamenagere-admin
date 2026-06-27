@@ -46,6 +46,14 @@ export interface ApiError {
   status?: number;
 }
 
+export interface MediaItem {
+  path: string;
+  url: string;
+  name: string;
+  size?: number;
+  createdAt?: string;
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -81,7 +89,8 @@ export const api = {
     request<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PUT", body: body ? JSON.stringify(body) : undefined }),
-  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  delete: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: "DELETE", body: body ? JSON.stringify(body) : undefined }),
 
   /** Multipart upload to /admin/media; returns the public URL. */
   async upload(file: File, folder = "products"): Promise<{ url: string; path: string }> {
@@ -109,6 +118,12 @@ export const adminApi = {
   dashboard: () => api.get("/admin/dashboard"),
   stats: () => api.get("/admin/stats"),
   analytics: (days = 30) => api.get(`/admin/analytics?days=${days}`),
+
+  media: {
+    list: (folder = "products") =>
+      api.get<MediaItem[]>(`/admin/media?folder=${encodeURIComponent(folder)}`),
+    remove: (path: string) => api.delete("/admin/media", { path }),
+  },
 
   products: {
     list: (qs = "") => api.get(`/admin/products${qs}`),

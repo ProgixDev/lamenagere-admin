@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ExternalLink, X } from "lucide-react";
+import { ExternalLink, X, Images } from "lucide-react";
 import { toast } from "sonner";
 import { adminApi, api } from "@/lib/api";
 import { OPENING_TYPES, type OpeningTypeKey } from "@/lib/types";
+import MediaLibrary from "./MediaLibrary";
 
 type Mode = "edit" | "new";
 /** How a product is priced. "fixed" = single price; "sqm" = price per m² with
@@ -80,6 +81,7 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
+  const [libOpen, setLibOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLInputElement>(null);
 
@@ -323,8 +325,18 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
                 <div style={{ fontSize: 10, textAlign: "center", marginTop: 6 }}>Ajouter</div>
               </div>
+              <div onClick={() => setLibOpen(true)} style={{ aspectRatio: "1", borderRadius: 10, background: "var(--surface-container-low)", border: "1.5px dashed var(--outline-variant)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--outline)", cursor: "pointer" }}>
+                <Images size={22} strokeWidth={1.6} />
+                <div style={{ fontSize: 10, textAlign: "center", marginTop: 6 }}>Bibliothèque</div>
+              </div>
             </div>
             <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onPickImages} />
+            <MediaLibrary
+              open={libOpen}
+              folder="products"
+              onClose={() => setLibOpen(false)}
+              onPick={(url) => setImages((im) => (im.includes(url) ? im : [...im, url]))}
+            />
 
             <div style={{ marginTop: 20 }}>
               <label className="field-label" style={{ display: "block", marginBottom: 8 }}>
