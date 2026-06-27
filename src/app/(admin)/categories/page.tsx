@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Plus, Folder, Trash2, Pencil, X } from "lucide-react";
 import { adminApi, api } from "@/lib/api";
+import CategoryBlocksEditor, { type ConfigBlock } from "@/components/CategoryBlocksEditor";
 
 interface AdminCategory {
   id: string;
@@ -20,6 +21,7 @@ interface AdminCategory {
   isFeaturedHome: boolean;
   b2bOnly: boolean;
   deliveryOverride?: string;
+  configBlocks?: ConfigBlock[];
 }
 
 interface Form {
@@ -32,6 +34,7 @@ interface Form {
   isFeaturedHome: boolean;
   b2bOnly: boolean;
   deliveryOverride: string;
+  configBlocks: ConfigBlock[];
 }
 
 const SWATCHES = ["#FFC69A", "#E8D6FF", "#C8E0C0", "#F4C8C8", "#C8DCE8", "#F4E8C8"];
@@ -47,6 +50,7 @@ function blankForm(): Form {
     isFeaturedHome: false,
     b2bOnly: false,
     deliveryOverride: "",
+    configBlocks: [],
   };
 }
 
@@ -61,6 +65,7 @@ function toForm(c: AdminCategory): Form {
     isFeaturedHome: c.isFeaturedHome,
     b2bOnly: c.b2bOnly,
     deliveryOverride: c.deliveryOverride ?? "",
+    configBlocks: c.configBlocks ?? [],
   };
 }
 
@@ -140,6 +145,7 @@ export default function CategoriesPage() {
         isFeaturedHome: form.isFeaturedHome,
         b2bOnly: form.b2bOnly,
         deliveryOverride: form.deliveryOverride || undefined,
+        configBlocks: form.configBlocks,
       };
       if (editingId) await adminApi.categories.update(editingId, payload);
       else await adminApi.categories.create(payload);
@@ -298,6 +304,13 @@ export default function CategoriesPage() {
                 <div className="field">
                   <label className="field-label">Délai de livraison spécifique</label>
                   <input className="input" placeholder="Hérité de la zone" value={form.deliveryOverride} onChange={(e) => patch({ deliveryOverride: e.target.value })} />
+                </div>
+
+                <div style={{ borderTop: "1px solid var(--outline-soft)", paddingTop: 18 }}>
+                  <CategoryBlocksEditor
+                    blocks={form.configBlocks}
+                    onChange={(configBlocks) => patch({ configBlocks })}
+                  />
                 </div>
               </div>
             </div>
