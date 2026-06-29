@@ -69,7 +69,7 @@ interface OrderDto {
   total: number;
   subtotal: number;
   shippingCost: number;
-  shippingAddress: { firstName: string; lastName: string; street: string; postalCode: string; city: string; country: string };
+  shippingAddress: { firstName: string; lastName: string; street: string; postalCode: string; city: string; country: string; phone?: string };
   territory: string;
   estimatedDelivery: string;
   createdAt: string;
@@ -154,9 +154,24 @@ export default function OrderDetailPage() {
     }
   }
   async function acceptRefund() {
-    if (!confirm("Accepter et rembourser via Stripe ? Cette action est irréversible.")) return;
+    const input = prompt(
+      `Montant à rembourser en €.\nLaissez vide pour un remboursement TOTAL de ${formatEUR(o.total)}.`,
+      "",
+    );
+    if (input === null) return; // cancelled
+    let amountCents: number | undefined;
+    if (input.trim() !== "") {
+      const euros = parseFloat(input.replace(",", "."));
+      if (!Number.isFinite(euros) || euros <= 0 || euros > o.total) {
+        toast.error("Montant invalide");
+        return;
+      }
+      amountCents = Math.round(euros * 100);
+    }
+    const label = amountCents != null ? `${formatEUR(amountCents / 100)} (partiel)` : `${formatEUR(o.total)} (total)`;
+    if (!confirm(`Rembourser ${label} via Stripe ? Cette action est irréversible.`)) return;
     try {
-      await adminApi.orders.acceptRefund(o.id);
+      await adminApi.orders.acceptRefund(o.id, amountCents);
       toast.success("Remboursement Stripe effectué");
       load();
     } catch (e) {
@@ -194,6 +209,32 @@ export default function OrderDetailPage() {
           )}
         </div>
       </div>
+
+      {o.refundStatus === "requested" && (
+        <div
+          style={{
+            background: "#FDECEA",
+            border: "1px solid #F2B8B5",
+            borderRadius: 12,
+            padding: "14px 18px",
+            marginBottom: 18,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <span style={{ fontSize: 20 }}>⚠️</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, color: "#B02A37" }}>
+              Ce client a une demande de remboursement en attente
+            </div>
+            <div style={{ fontSize: 13, color: "#8A2A2A", marginTop: 2 }}>
+              {o.refundReason ? `« ${o.refundReason} » — ` : ""}
+              traitez-la dans la section Paiement ci-dessous.
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="row-8-4">
         <div className="stack">
@@ -287,6 +328,11 @@ export default function OrderDetailPage() {
             <div style={{ fontSize: 13, color: "var(--on-surface-variant)", lineHeight: 1.6 }}>
               {o.shippingAddress.street}<br />{o.shippingAddress.postalCode} {o.shippingAddress.city}<br />{o.shippingAddress.country}
             </div>
+            {o.shippingAddress.phone && (
+              <div style={{ fontSize: 13, color: "var(--primary)", marginTop: 8 }}>
+                📞 {o.shippingAddress.phone}
+              </div>
+            )}
           </div>
 
           <div className="card card-padded">
