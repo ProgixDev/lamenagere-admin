@@ -51,7 +51,6 @@ interface Form {
   freeShipping: boolean;
   seoTitle: string;
   seoDescription: string;
-  isFeatured: boolean;
 }
 
 const EMPTY: Form = {
@@ -61,7 +60,7 @@ const EMPTY: Form = {
   minWidth: "", minHeight: "", maxWidth: "", maxHeight: "",
   deliveryMetropole: "2-3 semaines", deliveryOutremer: "8-12 semaines",
   weightKg: "", volumeM3: "", freeShipping: false,
-  seoTitle: "", seoDescription: "", isFeatured: false,
+  seoTitle: "", seoDescription: "",
 };
 
 const num = (s: string): number | undefined => {
@@ -128,7 +127,6 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
           freeShipping: !!p.free_shipping,
           seoTitle: p.seo_title ?? "",
           seoDescription: p.seo_description ?? "",
-          isFeatured: !!p.is_featured,
         });
         const media = (p.media ?? []) as { url: string; type: string }[];
         setImages(media.filter((m) => m.type === "image").map((m) => m.url));
@@ -216,7 +214,6 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
       freeShipping: form.freeShipping,
       seoTitle: form.seoTitle || undefined,
       seoDescription: form.seoDescription || undefined,
-      isFeatured: form.isFeatured,
       imageUrls: images,
       videoUrls: videos,
       // Empty → server stores null → product inherits its category template.
@@ -520,10 +517,10 @@ export function ProductEditForm({ mode = "edit" }: { mode?: Mode }) {
                 </button>
               ))}
             </div>
-            <label style={{ marginTop: 18, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 13, fontWeight: 500 }}>Mis en avant sur l&apos;accueil</span>
-              <span className="switch"><input type="checkbox" checked={form.isFeatured} onChange={(e) => patch({ isFeatured: e.target.checked })} /><span className="slider"></span></span>
-            </label>
+            <div style={{ marginTop: 16, fontSize: 12, color: "var(--outline)", lineHeight: 1.5 }}>
+              La mise en avant se gère désormais depuis la page <strong>Mise en avant</strong> (accueil)
+              ou par catégorie depuis l&apos;éditeur de catégorie.
+            </div>
           </div>
 
           <div className="card card-padded">

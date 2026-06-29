@@ -195,13 +195,15 @@ export const adminApi = {
     markRead: (id: string) => api.post(`/admin/conversations/${id}/read`),
   },
   featured: {
-    products: () => api.get("/admin/featured/products"),
-    addProduct: (productId: string) =>
-      api.post("/admin/featured/products", { productId }),
-    removeProduct: (productId: string) =>
-      api.delete(`/admin/featured/products/${productId}`),
-    reorderProducts: (ids: string[]) =>
-      api.post("/admin/featured/products/reorder", { ids }),
+    // categoryId scopes the rail; omit it for the global home "Sélection".
+    products: (categoryId?: string) =>
+      api.get(`/admin/featured/products${categoryId ? `?categoryId=${categoryId}` : ""}`),
+    addProduct: (productId: string, categoryId?: string) =>
+      api.post("/admin/featured/products", categoryId ? { productId, categoryId } : { productId }),
+    removeProduct: (productId: string, categoryId?: string) =>
+      api.delete(`/admin/featured/products/${productId}${categoryId ? `?categoryId=${categoryId}` : ""}`),
+    reorderProducts: (ids: string[], categoryId?: string) =>
+      api.post("/admin/featured/products/reorder", categoryId ? { ids, categoryId } : { ids }),
     carousel: () => api.get("/admin/featured/carousel"),
     createSlide: (body: unknown) => api.post("/admin/featured/carousel", body),
     updateSlide: (id: string, body: unknown) =>

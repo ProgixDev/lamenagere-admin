@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Folder, Trash2, Pencil, X } from "lucide-react";
+import { Plus, Folder, Trash2, Pencil, X, ChevronUp, ChevronDown } from "lucide-react";
 import { adminApi, api } from "@/lib/api";
 import CategoryBlocksEditor, { type ConfigBlock } from "@/components/CategoryBlocksEditor";
+import CategoryFeaturedPicker from "@/components/CategoryFeaturedPicker";
 import MediaLibrary from "@/components/MediaLibrary";
 
 interface AdminCategory {
@@ -161,6 +162,21 @@ export default function CategoriesPage() {
     }
   }
 
+  /** Move a category up/down in the list and persist the new order. */
+  async function moveCategory(index: number, dir: -1 | 1) {
+    const target = index + dir;
+    if (target < 0 || target >= cats.length) return;
+    const next = [...cats];
+    [next[index], next[target]] = [next[target], next[index]];
+    setCats(next);
+    try {
+      await adminApi.categories.reorder(next.map((c) => c.id));
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Réordonnancement impossible");
+      load();
+    }
+  }
+
   async function remove(id: string) {
     if (!confirm("Supprimer cette catégorie ?")) return;
     try {
@@ -207,13 +223,21 @@ export default function CategoriesPage() {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {cats.map((c) => (
+        {cats.map((c, i) => (
           <div
             key={c.id}
             className="card"
             style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer" }}
             onClick={() => openEdit(c)}
           >
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }} onClick={(e) => e.stopPropagation()}>
+              <button className="icon-btn" style={{ width: 26, height: 22 }} title="Monter" disabled={i === 0} onClick={() => moveCategory(i, -1)}>
+                <ChevronUp size={14} strokeWidth={2} />
+              </button>
+              <button className="icon-btn" style={{ width: 26, height: 22 }} title="Descendre" disabled={i === cats.length - 1} onClick={() => moveCategory(i, 1)}>
+                <ChevronDown size={14} strokeWidth={2} />
+              </button>
+            </div>
             <div style={{ width: 56, height: 56, borderRadius: 10, background: c.image ? `url(${c.image}) center/cover` : "var(--surface-container-low)", flexShrink: 0, opacity: c.isVisible ? 1 : 0.4 }}></div>
             <div style={{ flex: 1, opacity: c.isVisible ? 1 : 0.55 }}>
               <div style={{ fontFamily: "var(--display)", fontWeight: 600, fontSize: 16, letterSpacing: "-0.01em" }}>{c.name}</div>
@@ -316,6 +340,12 @@ export default function CategoriesPage() {
                   <label className="field-label">Délai de livraison spécifique</label>
                   <input className="input" placeholder="Hérité de la zone" value={form.deliveryOverride} onChange={(e) => patch({ deliveryOverride: e.target.value })} />
                 </div>
+
+                {editingId && (
+                  <div style={{ borderTop: "1px solid var(--outline-soft)", paddingTop: 18 }}>
+                    <CategoryFeaturedPicker categoryId={editingId} />
+                  </div>
+                )}
 
                 <div style={{ borderTop: "1px solid var(--outline-soft)", paddingTop: 18 }}>
                   <CategoryBlocksEditor
