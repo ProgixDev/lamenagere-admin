@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, FileText } from "lucide-react";
 import { adminApi } from "@/lib/api";
+import InvoiceExport from "@/components/InvoiceExport";
 
 interface AdminOrder {
   id: string;
@@ -15,6 +16,8 @@ interface AdminOrder {
   total: string;
   status: string;
   statusLabel: string;
+  /** Only a paid order has a facture to open. */
+  paymentStatus?: "unpaid" | "paid" | "failed" | "refunded";
   /** Failed refund or open chargeback — money not where the books say (0037). */
   needsAttention?: boolean;
   refundSettlement?: "none" | "pending" | "succeeded" | "failed" | "canceled";
@@ -73,6 +76,24 @@ export default function OrdersPage() {
   const [account, setAccount] = useState("all");
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
+  const [invoiceBusy, setInvoiceBusy] = useState<string | null>(null);
+
+  /**
+   * Opens the order's facture in a new tab, generating it first if the order
+   * predates the invoice system. Never emails the customer — that is a
+   * separate, explicit action on the order page.
+   */
+  async function openInvoice(orderId: string) {
+    setInvoiceBusy(orderId);
+    try {
+      const number = await adminApi.invoices.open(orderId);
+      toast.success(`Facture ${number} ouverte`);
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Facture indisponible");
+    } finally {
+      setInvoiceBusy(null);
+    }
+  }
 
   // Debounce keystrokes so typing doesn't fire a request per character.
   useEffect(() => {
@@ -124,6 +145,9 @@ export default function OrdersPage() {
           <div className="page-subtitle">
             {loading ? "Chargement…" : `${total} commande(s)`}
           </div>
+        </div>
+        <div className="hstack">
+          <InvoiceExport />
         </div>
       </div>
 
@@ -230,7 +254,20 @@ export default function OrdersPage() {
                     <td style={{ textAlign: "right" }} className="num">{o.total}</td>
                     <td><span className={`pill ${STATUS_PILL[o.status] ?? "pill"}`}>{o.statusLabel}</span></td>
                     <td onClick={(e) => e.stopPropagation()} style={{ textAlign: "right" }}>
-                      <a href={`/orders/${o.id}`} style={{ fontSize: 12, color: "var(--secondary)", fontWeight: 500 }}>Voir →</a>
+                      <div className="hstack" style={{ gap: 12, justifyContent: "flex-end" }}>
+                        {o.paymentStatus === "paid" && (
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            title="Ouvrir la facture PDF"
+                            disabled={invoiceBusy === o.id}
+                            onClick={() => openInvoice(o.id)}
+                          >
+                            <FileText size={14} strokeWidth={1.8} />
+                            <span>{invoiceBusy === o.id ? "…" : "Facture"}</span>
+                          </button>
+                        )}
+                        <a href={`/orders/${o.id}`} style={{ fontSize: 12, color: "var(--secondary)", fontWeight: 500 }}>Voir →</a>
+                      </div>
                     </td>
                   </tr>
                 );

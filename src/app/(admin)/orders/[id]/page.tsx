@@ -5,7 +5,7 @@ import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
-import { Truck, ArrowRight, Check, Eye } from "lucide-react";
+import { Truck, ArrowRight, Check, Eye, FileText, Mail } from "lucide-react";
 import { adminApi } from "@/lib/api";
 import { LayoutPlan, type ConfiguredLayout } from "@/components/OrderConfigView";
 import { formatEUR } from "@/lib/format";
@@ -245,6 +245,7 @@ export default function OrderDetailPage() {
   const [d, setD] = useState<Detail | null>(null);
   const [eta, setEta] = useState("");
   const [note, setNote] = useState("");
+  const [invoiceBusy, setInvoiceBusy] = useState<"open" | "email" | null>(null);
 
   function load() {
     if (!id) return;
@@ -262,6 +263,38 @@ export default function OrderDetailPage() {
   if (!d) return <div className="page"><div className="page-subtitle">Chargement…</div></div>;
   const o = d.order;
   const currentIdx = FLOW.indexOf(o.status);
+
+  /** Opens the PDF facture, generating it first for orders that predate it. */
+  async function openInvoice() {
+    setInvoiceBusy("open");
+    try {
+      const number = await adminApi.invoices.open(o.id);
+      toast.success(`Facture ${number} ouverte`);
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Facture indisponible");
+    } finally {
+      setInvoiceBusy(null);
+    }
+  }
+
+  /**
+   * Sends the facture to the customer. Forced, because the only reason to press
+   * this is that the customer does not have it — an un-forced call would be a
+   * silent no-op on any facture already marked delivered.
+   */
+  async function emailInvoice() {
+    if (!confirm("Envoyer la facture par email au client ?")) return;
+    setInvoiceBusy("email");
+    try {
+      const res = await adminApi.invoices.email(o.id, true);
+      if (res.sent) toast.success("Facture envoyée au client");
+      else toast.error(`Envoi impossible : ${res.reason ?? "raison inconnue"}`);
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Envoi impossible");
+    } finally {
+      setInvoiceBusy(null);
+    }
+  }
 
   async function advance() {
     const next = FLOW[Math.min(FLOW.length - 1, currentIdx + 1)];
@@ -609,11 +642,36 @@ export default function OrderDetailPage() {
                 )}
               </div>
 
-              {/* Direct admin refund only when no customer request is pending and not already refunded */}
-              {o.paymentStatus === "paid" &&
-                (!o.refundStatus || o.refundStatus === "none") && (
-                  <button className="btn btn-danger btn-sm" onClick={acceptRefund}>Rembourser</button>
+              <div className="hstack" style={{ gap: 10, flexWrap: "wrap" }}>
+                {/* Available on any paid order, including the ones paid before
+                    factures existed — the PDF is generated on first open. */}
+                {(o.paymentStatus === "paid" || o.paymentStatus === "refunded") && (
+                  <>
+                    <button
+                      className="btn btn-outline btn-sm"
+                      onClick={openInvoice}
+                      disabled={invoiceBusy !== null}
+                    >
+                      <FileText size={14} strokeWidth={1.8} />
+                      <span>{invoiceBusy === "open" ? "Ouverture…" : "Télécharger la facture"}</span>
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={emailInvoice}
+                      disabled={invoiceBusy !== null}
+                      title="Envoyer la facture au client par email"
+                    >
+                      <Mail size={14} strokeWidth={1.8} />
+                      <span>{invoiceBusy === "email" ? "Envoi…" : "Envoyer au client"}</span>
+                    </button>
+                  </>
                 )}
+                {/* Direct admin refund only when no customer request is pending and not already refunded */}
+                {o.paymentStatus === "paid" &&
+                  (!o.refundStatus || o.refundStatus === "none") && (
+                    <button className="btn btn-danger btn-sm" onClick={acceptRefund}>Rembourser</button>
+                  )}
+              </div>
             </div>
 
             {o.refundStatus === "requested" && (

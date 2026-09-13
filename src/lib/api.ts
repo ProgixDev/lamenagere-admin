@@ -149,6 +149,36 @@ async function request<T>(
   return data as T;
 }
 
+/**
+ * Streams an authenticated endpoint straight to the user's disk.
+ *
+ * Exports are binary or CSV, so they cannot go through `request()` (which
+ * parses JSON) and cannot be a plain <a href> either — the API only answers a
+ * Bearer token, which a navigation would not carry.
+ */
+async function downloadFile(path: string, filename: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    // The failure body is JSON even though the success body is not.
+    const data = await res.json().catch(() => ({}));
+    throw {
+      message: data?.message ?? "Export échoué",
+      status: res.status,
+    } as ApiError;
+  }
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
@@ -268,25 +298,7 @@ export const adminApi = {
   orders: {
     list: <T>(qs = "") => api.get<Paginated<T>>(`/admin/orders${qs}`),
     /** Downloads the orders export as CSV and triggers a browser download. */
-    async export(): Promise<void> {
-      const token = getToken();
-      const res = await fetch(`${API_BASE_URL}/admin/orders/export`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw { message: data?.message ?? "Export échoué", status: res.status } as ApiError;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "orders.csv";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    },
+    export: () => downloadFile("/admin/orders/export", "orders.csv"),
     detail: (id: string) => api.get(`/admin/orders/${id}`),
     update: (id: string, body: unknown) => api.put(`/admin/orders/${id}`, body),
     setStatus: (id: string, body: unknown) => api.put(`/admin/orders/${id}/status`, body),
@@ -297,6 +309,32 @@ export const adminApi = {
     rejectRefund: (id: string, note?: string) =>
       api.post(`/admin/orders/${id}/refund/reject`, { note }),
     note: (id: string, body: unknown) => api.post(`/admin/orders/${id}/note`, body),
+  },
+
+  invoices: {
+    /**
+     * Opens one order's PDF facture in a new tab. The backend generates it on
+     * the spot when the order predates the invoice system, and the signed URL
+     * it returns is short-lived — hand it straight to the browser, never store it.
+     */
+    async open(orderId: string): Promise<string> {
+      const { invoiceNumber, url } = await api.get<{ invoiceNumber: string; url: string }>(
+        `/admin/invoices/order/${orderId}`,
+      );
+      window.open(url, "_blank", "noopener");
+      return invoiceNumber;
+    },
+    /** Sends the facture to the customer; `force` re-sends an already-delivered one. */
+    email: (orderId: string, force = false) =>
+      api.post<{ sent: boolean; reason?: string }>(
+        `/admin/invoices/order/${orderId}/email`,
+        { force },
+      ),
+    /** Downloads the comptabilite export for a period: CSV ledger, or ZIP of the PDFs. */
+    async export(from: string, to: string, format: "csv" | "zip"): Promise<void> {
+      const qs = new URLSearchParams({ from, to, format });
+      await downloadFile(`/admin/invoices/export?${qs}`, `factures-${from}_${to}.${format}`);
+    },
   },
   quotes: {
     list: (status = "") => api.get(`/admin/quotes${status ? `?status=${status}` : ""}`),
