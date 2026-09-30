@@ -344,6 +344,9 @@ export const adminApi = {
       api.put(`/admin/quotes/${id}/status`, { status }),
     send: (id: string) => api.post(`/admin/quotes/${id}/send`),
     reject: (id: string) => api.post(`/admin/quotes/${id}/reject`),
+    /** Posts into the client's messagerie thread pinned to this quote. */
+    message: (id: string, body: { content: string; attachments?: string[] }) =>
+      api.post(`/admin/quotes/${id}/message`, body) as Promise<{ conversationId: string }>,
   },
   customers: {
     list: (qs = "") => api.get(`/admin/customers${qs}`),

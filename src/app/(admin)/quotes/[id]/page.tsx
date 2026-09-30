@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
-import { Send, Plus, Trash2 } from "lucide-react";
+import { Send, Plus, Trash2, MessageSquare } from "lucide-react";
 import { adminApi } from "@/lib/api";
 import { formatEUR } from "@/lib/format";
 
@@ -48,6 +49,9 @@ export default function QuoteDetailPage() {
   const [validity, setValidity] = useState("60");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [chat, setChat] = useState("");
+  const [chatBusy, setChatBusy] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
   function load() {
     if (!id) return;
@@ -79,16 +83,23 @@ export default function QuoteDetailPage() {
     setItems((xs) => xs.map((x, j) => (j === i ? { ...x, ...p } : x)));
   }
 
+  // Blank lines are dropped rather than sent: the API rejects an empty
+  // description, which used to fail the whole save.
+  function persist() {
+    return adminApi.quotes.update(q!.id, {
+      items: items
+        .filter((it) => it.description.trim())
+        .map((it) => ({ description: it.description.trim(), quantity: Math.max(1, Math.round(it.quantity) || 1), unitPrice: num(it.unitPrice) })),
+      shipping: num(shipping),
+      fabricationDelay: delay,
+      validityDays: Number(validity) || 60,
+      adminMessage: message,
+    });
+  }
   async function save() {
     setBusy(true);
     try {
-      await adminApi.quotes.update(q!.id, {
-        items: items.map((it) => ({ description: it.description, quantity: it.quantity, unitPrice: num(it.unitPrice) })),
-        shipping: num(shipping),
-        fabricationDelay: delay,
-        validityDays: Number(validity) || 60,
-        adminMessage: message,
-      });
+      await persist();
       toast.success("Devis enregistré");
       load();
     } catch (e) {
@@ -98,9 +109,13 @@ export default function QuoteDetailPage() {
     }
   }
   async function send() {
+    if (!items.some((it) => it.description.trim() && num(it.unitPrice) > 0)) {
+      toast.error("Ajoutez au moins une ligne chiffrée pour envoyer le devis. Pour poser une question au client, utilisez « Écrire au client ».");
+      return;
+    }
     setBusy(true);
     try {
-      await save();
+      await persist();
       await adminApi.quotes.send(q!.id);
       toast.success("Devis envoyé");
       load();
@@ -108,6 +123,21 @@ export default function QuoteDetailPage() {
       toast.error((e as { message?: string })?.message ?? "Envoi impossible");
     } finally {
       setBusy(false);
+    }
+  }
+  async function sendChat() {
+    const content = chat.trim();
+    if (!content) return;
+    setChatBusy(true);
+    try {
+      const r = await adminApi.quotes.message(q!.id, { content });
+      setConversationId(r.conversationId);
+      setChat("");
+      toast.success("Message envoyé au client");
+    } catch (e) {
+      toast.error((e as { message?: string })?.message ?? "Envoi impossible");
+    } finally {
+      setChatBusy(false);
     }
   }
   async function reject() {
@@ -210,7 +240,7 @@ export default function QuoteDetailPage() {
             </div>
 
             <div className="field" style={{ marginTop: 14 }}>
-              <label className="field-label">Message au client</label>
+              <label className="field-label">Note jointe au devis</label>
               <textarea className="textarea" style={{ minHeight: 70 }} value={message} onChange={(e) => setMessage(e.target.value)} />
             </div>
 
@@ -242,6 +272,31 @@ export default function QuoteDetailPage() {
               {q.is_b2b ? <span className="pill pill-bronze">PRO</span> : <span className="pill pill-outline">Particulier</span>}
             </div>
             {q.profile?.siret && <div style={{ fontSize: 11, color: "var(--outline)", marginTop: 10, fontFamily: "var(--mono)" }}>SIRET {q.profile.siret}</div>}
+          </div>
+
+          <div className="card card-padded">
+            <div className="hstack" style={{ gap: 8, marginBottom: 6 }}>
+              <MessageSquare size={15} strokeWidth={1.7} />
+              <div className="card-title">Écrire au client</div>
+            </div>
+            <div style={{ fontSize: 12, color: "var(--outline)", marginBottom: 12 }}>
+              Demander des mesures, des photos, un numéro… Le message arrive dans sa messagerie (app et boutique), sans envoyer le devis.
+            </div>
+            <textarea
+              className="textarea"
+              style={{ minHeight: 90 }}
+              placeholder="Bonjour, pouvez-vous nous envoyer vos mesures ?"
+              value={chat}
+              onChange={(e) => setChat(e.target.value)}
+            />
+            <div className="hstack" style={{ marginTop: 12, justifyContent: "space-between", gap: 8 }}>
+              {conversationId ? (
+                <Link href={`/messages/${conversationId}`} className="card-link" style={{ fontSize: 12 }}>Voir la conversation →</Link>
+              ) : <span />}
+              <button className="btn btn-primary btn-sm" onClick={sendChat} disabled={chatBusy || !chat.trim()}>
+                <Send size={14} strokeWidth={1.7} /> <span>{chatBusy ? "…" : "Envoyer le message"}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
