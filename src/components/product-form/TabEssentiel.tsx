@@ -25,7 +25,9 @@ export function TabEssentiel({
   errors: Record<string, string>;
   categories: Category[];
 }) {
-  const effectiveSlug = form.slug.trim() || slugify(form.name);
+  // Le serveur normalise toute saisie (minuscules, sans accents ni espaces) :
+  // l'aperçu montre l'URL qui sera réellement enregistrée.
+  const effectiveSlug = slugify(form.slug.trim() || form.name);
 
   return (
     <div className="stack">
