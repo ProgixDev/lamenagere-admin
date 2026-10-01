@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { NAV, getActiveKey } from "@/lib/nav";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { setToken, setStoredUser } from "@/lib/api";
 import { useCurrentUser } from "@/lib/user-context";
 import { ADMIN_ROLE_LABELS } from "@/lib/types";
@@ -28,7 +28,11 @@ export function Sidebar() {
   const roleLabel = user ? (ADMIN_ROLE_LABELS[user.role] ?? user.role) : "";
 
   async function logout() {
-    await supabase.auth.signOut().catch(() => {});
+    try {
+      await getSupabase().auth.signOut();
+    } catch {
+      // Sign-out is best effort: the local token below is what gates the app.
+    }
     setToken(null);
     setUser(null);
     router.replace("/login");

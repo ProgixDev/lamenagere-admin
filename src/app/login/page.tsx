@@ -4,7 +4,7 @@ import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Mail } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { setToken, setStoredUser, adminApi } from "@/lib/api";
 import { AdminRole } from "@/lib/types";
 
@@ -21,7 +21,7 @@ export default function LoginPage() {
       toast.error("Saisissez votre email d'abord");
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(target);
+    const { error } = await getSupabase().auth.resetPasswordForEmail(target);
     if (error) {
       toast.error("Envoi du lien impossible");
       return;
@@ -33,7 +33,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await getSupabase().auth.signInWithPassword({
         email: email.trim(),
         password: pwd,
       });
@@ -44,14 +44,14 @@ export default function LoginPage() {
 
       const ADMIN_ROLES = ["super_admin", "admin", "manager", "editor", "support"];
 
-      const { data: profile } = await supabase
+      const { data: profile } = await getSupabase()
         .from("profiles")
         .select("role, full_name")
         .eq("id", data.user.id)
         .single();
       const role = profile?.role as string | undefined;
       if (!role || !ADMIN_ROLES.includes(role)) {
-        await supabase.auth.signOut();
+        await getSupabase().auth.signOut();
         toast.error("Accès réservé aux administrateurs");
         return;
       }
